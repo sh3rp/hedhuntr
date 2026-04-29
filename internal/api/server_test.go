@@ -330,6 +330,55 @@ func TestUpdateProfileEndpointValidation(t *testing.T) {
 	}
 }
 
+func TestProfileQualityEndpoint(t *testing.T) {
+	server, httpServer := newTestServer(t)
+	minSalary := 150000
+	if _, err := server.store.UpsertFullCandidateProfile(context.Background(), profile.Profile{
+		Name:               "Alex Example",
+		Headline:           "Backend engineer",
+		Skills:             []string{"Go", "SQLite", "NATS", "React", "TypeScript"},
+		PreferredTitles:    []string{"Backend Engineer"},
+		PreferredLocations: []string{"Remote"},
+		RemotePreference:   "remote",
+		MinSalary:          &minSalary,
+		WorkHistory: []profile.WorkHistory{
+			{
+				Company:    "ExampleCo",
+				Title:      "Senior Engineer",
+				Summary:    "Built backend systems.",
+				Highlights: []string{"Built Go APIs.", "Improved SQLite performance.", "Shipped NATS workflows."},
+			},
+		},
+		Projects: []profile.Project{
+			{Name: "Job Pipeline", Technologies: []string{"Go", "SQLite"}},
+		},
+		Certifications: []profile.Certification{
+			{Name: "Go Developer"},
+		},
+		Links: []profile.Link{
+			{Label: "GitHub", URL: "https://example.com"},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := http.Get(httpServer.URL + "/api/profile/quality")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	var report profile.QualityReport
+	if err := json.NewDecoder(resp.Body).Decode(&report); err != nil {
+		t.Fatal(err)
+	}
+	if report.Status != "ready" || report.Score != 100 || len(report.Checks) == 0 {
+		t.Fatalf("quality report = %#v, want ready 100 with checks", report)
+	}
+}
+
 func seedReviewMaterial(t *testing.T, server *Server) int64 {
 	t.Helper()
 	ctx := context.Background()

@@ -129,6 +129,8 @@ The Resume Tuning Worker currently supports:
 - Consuming `applications.ready` from JetStream with a durable pull consumer.
 - Loading the ready application, parsed job context, candidate profile, and base resume source.
 - Generating deterministic Markdown resume and cover letter drafts from stored candidate data.
+- Ranking stored work history, projects, and certifications against job skills.
+- Rendering relevant technologies, education, certifications, and links into tailored resume drafts.
 - Persisting generated documents under local document storage.
 - Creating draft `resume_versions` and `application_materials` records for human review.
 - Publishing `applications.materials.drafted`.
@@ -147,6 +149,7 @@ The API Service currently supports:
 - Serving dashboard data from SQLite over HTTP.
 - Exposing health, jobs, pipeline, profile, resume source, notification, and worker endpoints.
 - Updating candidate profile core fields and structured sections through the API.
+- Reporting candidate profile completeness and quality checks for matching and resume tuning readiness.
 - Exposing review queue endpoints for generated application materials.
 - Updating generated material status for approve, reject, needs-changes, and regeneration-requested actions.
 - Creating automation handoff packets from approved application materials.
@@ -162,6 +165,7 @@ The React/Electron UI currently supports:
 - Loading live dashboard data from the Go API.
 - Displaying job pipeline status, match scores, notifications, worker state, candidate profile, and resume sources.
 - Editing candidate profile name, headline, skills, preferences, salary floor, work history, projects, education, certifications, and links.
+- Showing candidate profile completeness score and missing profile inputs.
 - Reviewing generated resume and cover letter Markdown drafts.
 - Approving, rejecting, requesting changes, or requesting regeneration for generated materials.
 - Approving reviewed materials for an assisted automation handoff.
@@ -493,6 +497,7 @@ GET /api/health
 GET /api/jobs
 GET /api/pipeline
 GET /api/profile
+GET /api/profile/quality
 PUT /api/profile
 GET /api/resume-sources
 GET /api/review/applications

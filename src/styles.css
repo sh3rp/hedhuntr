@@ -642,6 +642,106 @@ button:disabled {
   margin-top: 16px;
 }
 
+.profile-quality-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.profile-quality-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.profile-quality-summary p {
+  margin: 8px 0 0;
+  color: #68756f;
+}
+
+.quality-score {
+  display: grid;
+  min-width: 96px;
+  padding: 10px 12px;
+  border: 1px solid #d7ded8;
+  border-radius: 8px;
+  text-align: center;
+  text-transform: capitalize;
+  background: #f8faf7;
+}
+
+.quality-score strong {
+  font-size: 28px;
+}
+
+.quality-score.ready {
+  color: #1f5d3f;
+  border-color: #bddfc8;
+  background: #edf7ef;
+}
+
+.quality-score.usable {
+  color: #735715;
+  border-color: #e6d39b;
+  background: #fff9e8;
+}
+
+.quality-score.incomplete {
+  color: #7a332e;
+  border-color: #e8beb7;
+  background: #fff6f4;
+}
+
+.quality-meter {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e7ede8;
+}
+
+.quality-meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #2c6d5b;
+}
+
+.quality-check-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.quality-check {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px;
+  border: 1px solid #e1e7e1;
+  border-radius: 8px;
+  background: #fbfcfa;
+}
+
+.quality-check.complete svg {
+  color: #2c6d5b;
+}
+
+.quality-check.missing svg {
+  color: #b05b39;
+}
+
+.quality-check strong,
+.quality-check span {
+  display: block;
+}
+
+.quality-check span {
+  margin-top: 3px;
+  color: #68756f;
+  font-size: 13px;
+}
+
 .profile-sections {
   display: grid;
   gap: 14px;
@@ -783,6 +883,7 @@ button:disabled {
   .split-layout,
   .review-layout,
   .profile-grid,
+  .quality-check-grid,
   .profile-form {
     grid-template-columns: 1fr 1fr;
   }
@@ -834,6 +935,7 @@ button:disabled {
   .review-layout,
   .review-summary,
   .profile-grid,
+  .quality-check-grid,
   .profile-form {
     grid-template-columns: 1fr;
   }

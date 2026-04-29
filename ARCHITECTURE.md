@@ -153,6 +153,7 @@ Responsibilities:
 - Serve the React application in production or expose an API for a separately hosted frontend.
 - Provide JSON endpoints for jobs, applications, candidate profile, documents, interviews, notifications, and settings.
 - Validate and persist candidate profile edits for matching and resume generation.
+- Report candidate profile completeness and quality checks.
 - Provide review queue endpoints for generated resume and cover letter materials.
 - Record material review decisions such as approved, rejected, needs changes, and regeneration requested.
 - Create automation handoff packets only after required materials are approved.
@@ -351,6 +352,8 @@ Responsibilities:
 - Consume `applications.ready`.
 - Load the ready application, parsed job context, candidate profile, and base resume source.
 - Generate tailored resume and cover letter drafts for review.
+- Rank stored work history, projects, and certifications against job skills.
+- Render relevant technologies, education, certifications, and links without inventing new claims.
 - Store generated document files and SQLite metadata.
 - Emit `applications.materials.drafted`.
 

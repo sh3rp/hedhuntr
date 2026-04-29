@@ -72,6 +72,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/jobs", s.handleJobs)
 	mux.HandleFunc("GET /api/pipeline", s.handlePipeline)
 	mux.HandleFunc("GET /api/profile", s.handleProfile)
+	mux.HandleFunc("GET /api/profile/quality", s.handleProfileQuality)
 	mux.HandleFunc("PUT /api/profile", s.handleUpdateProfile)
 	mux.HandleFunc("GET /api/resume-sources", s.handleResumeSources)
 	mux.HandleFunc("GET /api/review/applications", s.handleReviewApplications)
@@ -108,6 +109,24 @@ func (s *Server) handlePipeline(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
 	profile, err := s.store.FirstFullCandidateProfile(r.Context())
 	writeResult(w, profile, err)
+}
+
+func (s *Server) handleProfileQuality(w http.ResponseWriter, r *http.Request) {
+	value, err := s.store.FirstFullCandidateProfile(r.Context())
+	if err != nil {
+		writeResult(w, nil, err)
+		return
+	}
+	if value == nil {
+		writeJSON(w, http.StatusOK, profile.AssessQuality(profile.Profile{}))
+		return
+	}
+	candidate, ok := value.(profile.Profile)
+	if !ok {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "unexpected profile response"})
+		return
+	}
+	writeJSON(w, http.StatusOK, profile.AssessQuality(candidate))
 }
 
 func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {

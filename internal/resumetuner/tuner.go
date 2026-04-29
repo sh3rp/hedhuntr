@@ -32,6 +32,8 @@ func Tune(input Input) Output {
 	jobSkills := orderedUnique(input.Application.Skills)
 	prioritySkills := prioritizeSkills(jobSkills, matched)
 	highlights := selectHighlights(input.Profile, prioritySkills, input.MaxHighlights)
+	workHistory := rankedWorkHistory(input.Profile.WorkHistory, prioritySkills)
+	projects := rankedProjects(input.Profile.Projects, prioritySkills)
 
 	var resume bytes.Buffer
 	writeLine(&resume, "# %s", input.Profile.Name)
@@ -81,13 +83,21 @@ func Tune(input Input) Output {
 
 	writeLine(&resume, "")
 	writeLine(&resume, "## Experience")
-	for _, item := range input.Profile.WorkHistory {
+	for _, item := range workHistory {
 		writeLine(&resume, "")
 		writeLine(&resume, "### %s, %s", item.Title, item.Company)
-		dates := strings.TrimSpace(strings.Join(nonEmpty(item.StartDate, item.EndDate), " - "))
+		endDate := item.EndDate
+		if item.Current && endDate == "" {
+			endDate = "Present"
+		}
+		dates := strings.TrimSpace(strings.Join(nonEmpty(item.StartDate, endDate), " - "))
 		meta := strings.TrimSpace(strings.Join(nonEmpty(item.Location, dates), " | "))
 		if meta != "" {
 			writeLine(&resume, "_%s_", meta)
+		}
+		if len(item.Technologies) > 0 {
+			writeLine(&resume, "")
+			writeLine(&resume, "_Technologies: %s_", strings.Join(orderedUnique(item.Technologies), ", "))
 		}
 		if item.Summary != "" {
 			writeLine(&resume, "")
@@ -98,18 +108,63 @@ func Tune(input Input) Output {
 		}
 	}
 
-	if len(input.Profile.Projects) > 0 {
+	if len(projects) > 0 {
 		writeLine(&resume, "")
 		writeLine(&resume, "## Projects")
-		for _, item := range input.Profile.Projects {
+		for _, item := range projects {
 			writeLine(&resume, "")
 			writeLine(&resume, "### %s", item.Name)
+			meta := strings.Join(nonEmpty(item.Role, item.URL), " | ")
+			if meta != "" {
+				writeLine(&resume, "_%s_", meta)
+			}
+			if len(item.Technologies) > 0 {
+				writeLine(&resume, "")
+				writeLine(&resume, "_Technologies: %s_", strings.Join(orderedUnique(item.Technologies), ", "))
+			}
 			if item.Summary != "" {
+				writeLine(&resume, "")
 				writeLine(&resume, "%s", item.Summary)
 			}
 			for _, highlight := range item.Highlights {
 				writeLine(&resume, "- %s", highlight)
 			}
+		}
+	}
+
+	if len(input.Profile.Education) > 0 {
+		writeLine(&resume, "")
+		writeLine(&resume, "## Education")
+		for _, item := range input.Profile.Education {
+			writeLine(&resume, "")
+			writeLine(&resume, "### %s", item.Institution)
+			detail := strings.TrimSpace(strings.Join(nonEmpty(item.Degree, item.Field), ", "))
+			dates := strings.TrimSpace(strings.Join(nonEmpty(item.StartDate, item.EndDate), " - "))
+			meta := strings.TrimSpace(strings.Join(nonEmpty(detail, dates), " | "))
+			if meta != "" {
+				writeLine(&resume, "_%s_", meta)
+			}
+			if item.Summary != "" {
+				writeLine(&resume, "")
+				writeLine(&resume, "%s", item.Summary)
+			}
+		}
+	}
+
+	if len(input.Profile.Certifications) > 0 {
+		writeLine(&resume, "")
+		writeLine(&resume, "## Certifications")
+		for _, item := range rankedCertifications(input.Profile.Certifications, prioritySkills) {
+			dates := strings.TrimSpace(strings.Join(nonEmpty(item.IssuedAt, item.ExpiresAt), " - "))
+			meta := strings.TrimSpace(strings.Join(nonEmpty(item.Issuer, dates), " | "))
+			line := item.Name
+			if meta != "" {
+				line = fmt.Sprintf("%s (%s)", line, meta)
+			}
+			if item.URL != "" {
+				line = fmt.Sprintf("[%s](%s)", line, item.URL)
+			}
+			writeLine(&resume, "- %s", line)
 		}
 	}
 
@@ -165,6 +220,63 @@ func selectHighlights(p profile.Profile, prioritySkills []string, max int) []str
 	})
 	unique := orderedUnique(candidates)
 	return unique[:min(len(unique), max)]
+}
+
+func rankedWorkHistory(items []profile.WorkHistory, prioritySkills []string) []profile.WorkHistory {
+	out := append([]profile.WorkHistory(nil), items...)
+	sort.SliceStable(out, func(i, j int) bool {
+		left := scoreText(workHistoryText(out[i]), prioritySkills)
+		right := scoreText(workHistoryText(out[j]), prioritySkills)
+		if left == right {
+			return false
+		}
+		return left > right
+	})
+	return out
+}
+
+func rankedProjects(items []profile.Project, prioritySkills []string) []profile.Project {
+	out := append([]profile.Project(nil), items...)
+	sort.SliceStable(out, func(i, j int) bool {
+		left := scoreText(projectText(out[i]), prioritySkills)
+		right := scoreText(projectText(out[j]), prioritySkills)
+		if left == right {
+			return false
+		}
+		return left > right
+	})
+	return out
+}
+
+func rankedCertifications(items []profile.Certification, prioritySkills []string) []profile.Certification {
+	out := append([]profile.Certification(nil), items...)
+	sort.SliceStable(out, func(i, j int) bool {
+		left := scoreText(certificationText(out[i]), prioritySkills)
+		right := scoreText(certificationText(out[j]), prioritySkills)
+		if left == right {
+			return false
+		}
+		return left > right
+	})
+	return out
+}
+
+func workHistoryText(item profile.WorkHistory) string {
+	parts := []string{item.Company, item.Title, item.Location, item.Summary}
+	parts = append(parts, item.Highlights...)
+	parts = append(parts, item.Technologies...)
+	return strings.Join(parts, " ")
+}
+
+func projectText(item profile.Project) string {
+	parts := []string{item.Name, item.Role, item.URL, item.Summary}
+	parts = append(parts, item.Highlights...)
+	parts = append(parts, item.Technologies...)
+	return strings.Join(parts, " ")
+}
+
+func certificationText(item profile.Certification) string {
+	return strings.Join([]string{item.Name, item.Issuer, item.URL}, " ")
 }
 
 func prioritizeSkills(jobSkills []string, matched map[string]struct{}) []string {

@@ -1,4 +1,4 @@
-import type { AutomationHandoff, AutomationRun, AutomationRunView, CandidateProfile, Job, NotificationDelivery, PipelineStage, ResumeSource, ReviewApplication, ReviewMaterial, ReviewMaterialStatus, WorkerState } from "../types";
+import type { AutomationHandoff, AutomationRun, AutomationRunView, CandidateProfile, Job, NotificationDelivery, PipelineStage, ProfileQualityReport, ResumeSource, ReviewApplication, ReviewMaterial, ReviewMaterialStatus, WorkerState } from "../types";
 
 const apiBase = (import.meta.env.VITE_HEDHUNTR_API_URL as string | undefined) ?? "";
 
@@ -29,6 +29,7 @@ export type DashboardData = {
   jobs: Job[];
   pipeline: PipelineStage[];
   profile: CandidateProfile | null;
+  profileQuality: ProfileQualityReport | null;
   resumeSources: ResumeSource[];
   reviewApplications: ReviewApplication[];
   automationRuns: AutomationRunView[];
@@ -37,10 +38,11 @@ export type DashboardData = {
 };
 
 export async function loadDashboardData(fallback: DashboardData): Promise<DashboardData> {
-  const [jobs, pipeline, profile, resumeSources, reviewApplications, automationRuns, notifications, workers] = await Promise.all([
+  const [jobs, pipeline, profile, profileQuality, resumeSources, reviewApplications, automationRuns, notifications, workers] = await Promise.all([
     getJSON<Job[]>("/api/jobs", fallback.jobs),
     getJSON<PipelineStage[]>("/api/pipeline", fallback.pipeline),
     getJSON<CandidateProfile | null>("/api/profile", fallback.profile),
+    getJSON<ProfileQualityReport | null>("/api/profile/quality", fallback.profileQuality),
     getJSON<ResumeSource[]>("/api/resume-sources", fallback.resumeSources),
     getJSON<ReviewApplication[]>("/api/review/applications", fallback.reviewApplications),
     getJSON<AutomationRunView[]>("/api/automation/runs", fallback.automationRuns),
@@ -48,7 +50,7 @@ export async function loadDashboardData(fallback: DashboardData): Promise<Dashbo
     getJSON<WorkerState[]>("/api/workers", fallback.workers)
   ]);
 
-  return { jobs, pipeline, profile, resumeSources, reviewApplications, automationRuns, notifications, workers };
+  return { jobs, pipeline, profile, profileQuality, resumeSources, reviewApplications, automationRuns, notifications, workers };
 }
 
 export function updateReviewMaterialStatus(id: number, status: ReviewMaterialStatus, notes = ""): Promise<ReviewMaterial> {

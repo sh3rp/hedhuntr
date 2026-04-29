@@ -1,5 +1,6 @@
 import {
   Activity,
+  AlertCircle,
   Bell,
   BriefcaseBusiness,
   CheckCircle2,
@@ -24,7 +25,7 @@ import type { ReactNode } from "react";
 import { approveApplicationForAutomation, failAutomationRun, loadDashboardData, markAutomationSubmitted, retryAutomationRun, saveCandidateProfile, updateReviewMaterialStatus, type DashboardData } from "./api/client";
 import { jobs as mockJobs, notifications as mockNotifications, pipeline as mockPipeline, resumeSources as mockResumeSources, workers as mockWorkers } from "./data/mockData";
 import { useRealtime } from "./hooks/useRealtime";
-import type { AutomationRunView, CandidateProfile, Certification, Education, Job, JobStatus, NavItem, ProfileLink, Project, RealtimeEvent, ReviewApplication, ReviewMaterial, ReviewMaterialStatus, ViewKey, WorkHistory } from "./types";
+import type { AutomationRunView, CandidateProfile, Certification, Education, Job, JobStatus, NavItem, ProfileLink, ProfileQualityReport, Project, RealtimeEvent, ReviewApplication, ReviewMaterial, ReviewMaterialStatus, ViewKey, WorkHistory } from "./types";
 
 const navItems: NavItem[] = [
   { key: "overview", label: "Overview", icon: LayoutDashboard },
@@ -55,6 +56,7 @@ export function App() {
     jobs: mockJobs,
     pipeline: mockPipeline,
     profile: null,
+    profileQuality: null,
     resumeSources: mockResumeSources,
     reviewApplications: [],
     automationRuns: [],
@@ -156,7 +158,7 @@ export function App() {
         {view === "pipeline" && <PipelineView rows={data.jobs} stages={data.pipeline} />}
         {view === "review" && <ReviewView applications={data.reviewApplications} onChanged={refreshDashboard} />}
         {view === "automation" && <AutomationView runs={data.automationRuns} onChanged={refreshDashboard} />}
-        {view === "profile" && <ProfileView onChanged={refreshDashboard} profile={data.profile} />}
+        {view === "profile" && <ProfileView onChanged={refreshDashboard} profile={data.profile} quality={data.profileQuality} />}
         {view === "resumes" && <ResumesView sources={data.resumeSources} />}
         {view === "notifications" && <NotificationsView rows={data.notifications} />}
         {view === "system" && <SystemView realtimeEvents={realtime.events} workers={data.workers} />}
@@ -479,7 +481,7 @@ function AutomationView({ runs, onChanged }: { runs: AutomationRunView[]; onChan
   );
 }
 
-function ProfileView({ profile, onChanged }: { profile: CandidateProfile | null; onChanged: () => void }) {
+function ProfileView({ profile, quality, onChanged }: { profile: CandidateProfile | null; quality: ProfileQualityReport | null; onChanged: () => void }) {
   const initial = profile ?? emptyProfile();
   const [draft, setDraft] = useState<CandidateProfile>(initial);
   const [skillsText, setSkillsText] = useState(initial.skills.join(", "));
@@ -529,6 +531,7 @@ function ProfileView({ profile, onChanged }: { profile: CandidateProfile | null;
 
   return (
     <div className="view-stack">
+      <ProfileQualityPanel quality={quality} />
       <section className="panel profile-panel">
         <PanelHeader title="Candidate Profile" icon={UserRound} />
         <div className="profile-form">
@@ -701,6 +704,44 @@ function ProfileView({ profile, onChanged }: { profile: CandidateProfile | null;
         <code className="command-line">go run ./cmd/profile -db hedhuntr.db -profile configs/candidate-profile.example.json -print</code>
       </section>
     </div>
+  );
+}
+
+function ProfileQualityPanel({ quality }: { quality: ProfileQualityReport | null }) {
+  const report = quality ?? { score: 0, status: "incomplete", checks: [] };
+  const missing = report.checks.filter((item) => item.status !== "complete");
+  const complete = report.checks.length - missing.length;
+  return (
+    <section className="panel profile-quality-panel">
+      <div className="profile-quality-summary">
+        <div>
+          <PanelHeader title="Profile Quality" icon={Gauge} />
+          <p>{complete} of {report.checks.length} checks complete</p>
+        </div>
+        <div className={`quality-score ${report.status}`}>
+          <strong>{report.score}</strong>
+          <span>{report.status}</span>
+        </div>
+      </div>
+      <div className="quality-meter" aria-label={`Profile quality ${report.score}%`}>
+        <span style={{ width: `${Math.max(0, Math.min(100, report.score))}%` }} />
+      </div>
+      <div className="quality-check-grid">
+        {report.checks.map((item) => {
+          const completeCheck = item.status === "complete";
+          const Icon = completeCheck ? CheckCircle2 : AlertCircle;
+          return (
+            <div className={`quality-check ${completeCheck ? "complete" : "missing"}`} key={item.id}>
+              <Icon size={18} />
+              <div>
+                <strong>{item.label}</strong>
+                <span>{item.message}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

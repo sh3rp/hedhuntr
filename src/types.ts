@@ -157,6 +157,20 @@ export type CandidateProfile = {
   links: ProfileLink[];
 };
 
+export type ProfileQualityCheck = {
+  id: string;
+  label: string;
+  status: "complete" | "missing" | string;
+  message: string;
+  weight: number;
+};
+
+export type ProfileQualityReport = {
+  score: number;
+  status: "ready" | "usable" | "incomplete" | string;
+  checks: ProfileQualityCheck[];
+};
+
 export type AutomationRun = {
   id: number;
   applicationId: number;
