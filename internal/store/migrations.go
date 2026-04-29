@@ -214,6 +214,47 @@ CREATE TABLE IF NOT EXISTS applications (
 );
 `,
 	},
+	{
+		Version: 5,
+		Name:    "create_notification_schema",
+		SQL: `
+CREATE TABLE IF NOT EXISTS notification_channels (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	name TEXT NOT NULL UNIQUE,
+	type TEXT NOT NULL,
+	enabled INTEGER NOT NULL DEFAULT 1,
+	webhook_url TEXT,
+	created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE TABLE IF NOT EXISTS notification_rules (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	name TEXT NOT NULL UNIQUE,
+	event_subject TEXT NOT NULL,
+	enabled INTEGER NOT NULL DEFAULT 1,
+	min_score INTEGER,
+	created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE TABLE IF NOT EXISTS notification_deliveries (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	channel_name TEXT NOT NULL,
+	channel_type TEXT NOT NULL,
+	event_id TEXT NOT NULL,
+	event_subject TEXT NOT NULL,
+	status TEXT NOT NULL,
+	status_code INTEGER,
+	error TEXT,
+	response_body TEXT,
+	delivered_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_notification_deliveries_event_id ON notification_deliveries(event_id);
+CREATE INDEX IF NOT EXISTS idx_notification_deliveries_status ON notification_deliveries(status);
+`,
+	},
 }
 
 func Migrate(ctx context.Context, db *sql.DB) error {

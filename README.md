@@ -100,6 +100,14 @@ The Matching Worker currently supports:
 - Publishing `jobs.matched`.
 - Creating `ready_to_apply` application records and publishing `applications.ready` when a score meets the configured threshold.
 
+The Notification Worker currently supports:
+
+- Consuming `jobs.matched` and `applications.ready` from JetStream with durable pull consumers.
+- Filtering `jobs.matched` notifications by score threshold.
+- Sending Discord webhook messages.
+- Sending Slack webhook messages.
+- Persisting notification channels, rules, delivery attempts, failures, status codes, and response bodies.
+
 ## Repository Layout
 
 ```text
@@ -109,12 +117,14 @@ cmd/scheduler/                    Scheduler command
 cmd/description-fetcher/          Description fetcher command
 cmd/parser-worker/                Parser / enrichment worker command
 cmd/matching-worker/              Matching worker command
+cmd/notification-worker/          Notification worker command
 configs/source-producer.example.json
 configs/persistence-dispatcher.example.json
 configs/scheduler.example.json
 configs/description-fetcher.example.json
 configs/parser-worker.example.json
 configs/matching-worker.example.json
+configs/notification-worker.example.json
 internal/config/                 Configuration loading
 internal/events/                 Event envelopes and payloads
 internal/broker/                 JetStream setup helpers
@@ -122,6 +132,8 @@ internal/descriptionfetcher/      Description fetcher orchestration and text ext
 internal/dispatcher/             Persistence dispatcher orchestration
 internal/matcher/                Candidate-to-job scoring
 internal/matchingworker/         Matching worker orchestration
+internal/notification/           Notification formatting and webhook senders
+internal/notificationworker/     Notification worker orchestration
 internal/parser/                 Deterministic job description parser
 internal/parserworker/           Parser worker orchestration
 internal/producer/               Source producer orchestration
@@ -272,6 +284,34 @@ go run ./cmd/parser-worker -config configs/parser-worker.example.json -max-messa
 go run ./cmd/matching-worker -config configs/matching-worker.example.json -max-messages 1
 ```
 
+## Running the Notification Worker
+
+Run the notification worker continuously:
+
+```bash
+go run ./cmd/notification-worker -config configs/notification-worker.example.json
+```
+
+Process one pending notification-worthy event and exit:
+
+```bash
+go run ./cmd/notification-worker -config configs/notification-worker.example.json -max-messages 1
+```
+
+Notification worker pipeline flow:
+
+```bash
+nats-server -js
+go run ./cmd/source-producer -config configs/source-producer.example.json
+go run ./cmd/persistence-dispatcher -config configs/persistence-dispatcher.example.json -max-messages 1
+go run ./cmd/description-fetcher -config configs/description-fetcher.example.json -max-messages 1
+go run ./cmd/parser-worker -config configs/parser-worker.example.json -max-messages 1
+go run ./cmd/matching-worker -config configs/matching-worker.example.json -max-messages 1
+go run ./cmd/notification-worker -config configs/notification-worker.example.json -max-messages 2
+```
+
+The example notification channels are disabled by default. Enable a channel and replace its webhook URL before expecting outbound Discord or Slack messages.
+
 ## Event Output
 
 The source producer publishes `JobDiscovered` events to:
@@ -308,5 +348,5 @@ Events use the shared envelope:
 
 - Add explicit candidate profile management commands or API endpoints.
 - Add resume source storage and document generation.
-- Add notification worker for `jobs.matched` and `applications.ready`.
+- Add resume tuning worker for `applications.ready`.
 - Add the React/TypeScript dashboard shell.

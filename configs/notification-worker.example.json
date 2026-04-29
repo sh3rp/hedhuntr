@@ -1,0 +1,40 @@
+{
+  "_comment": "Example config for cmd/notification-worker. JSON does not support comments, so _comment fields are documentation and are ignored by the Go loader.",
+  "nats": {
+    "_comment": "The notification worker consumes jobs.matched and applications.ready from this stream.",
+    "url": "nats://127.0.0.1:4222",
+    "stream": "JOBS",
+    "publish_timeout": "5s"
+  },
+  "sqlite": {
+    "_comment": "SQLite database file where notification channels, rules, and delivery attempts are stored.",
+    "path": "hedhuntr.db"
+  },
+  "consumer": {
+    "_comment": "Durable pull consumer settings for notification-worthy events.",
+    "durable": "notification-worker",
+    "batch_size": 10,
+    "fetch_wait": "2s",
+    "max_in_flight": 128
+  },
+  "notifications": {
+    "_comment": "Discord and Slack use incoming webhook URLs. Leave channels disabled until real webhook URLs are configured.",
+    "min_score": 70,
+    "notify_jobs_matched": true,
+    "notify_applications_ready": true,
+    "channels": [
+      {
+        "name": "discord-jobs",
+        "type": "discord",
+        "enabled": false,
+        "webhook_url": "https://discord.com/api/webhooks/example"
+      },
+      {
+        "name": "slack-jobs",
+        "type": "slack",
+        "enabled": false,
+        "webhook_url": "https://hooks.slack.com/services/example"
+      }
+    ]
+  }
+}
