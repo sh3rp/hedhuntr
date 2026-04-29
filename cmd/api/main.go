@@ -38,6 +38,9 @@ func main() {
 		os.Exit(1)
 	}
 	defer apiServer.Close()
+	if err := apiServer.StartPublisher(ctx, logger); err != nil {
+		logger.Warn("api event publisher unavailable", "error", err)
+	}
 	if err := apiServer.StartRealtime(ctx, logger); err != nil {
 		logger.Warn("api realtime bridge unavailable", "error", err)
 	}

@@ -49,6 +49,15 @@ func LoadAPI(path string) (API, error) {
 	if cfg.NATS.Stream == "" {
 		cfg.NATS.Stream = "JOBS"
 	}
+	if cfg.NATS.PublishTimeoutRaw == "" {
+		cfg.NATS.PublishTimeout = 5 * time.Second
+	} else {
+		timeout, err := time.ParseDuration(cfg.NATS.PublishTimeoutRaw)
+		if err != nil {
+			return API{}, fmt.Errorf("parse nats.publish_timeout: %w", err)
+		}
+		cfg.NATS.PublishTimeout = timeout
+	}
 	if cfg.SQLite.Path == "" {
 		cfg.SQLite.Path = "hedhuntr.db"
 	}

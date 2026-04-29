@@ -149,6 +149,7 @@ The API Service currently supports:
 - Exposing review queue endpoints for generated application materials.
 - Updating generated material status for approve, reject, needs-changes, and regeneration-requested actions.
 - Creating automation handoff packets from approved application materials.
+- Publishing durable automation handoff events to JetStream.
 - Providing WebSocket subscriptions for React and Electron clients.
 - Subscribing to NATS workflow events and broadcasting live dashboard updates over WebSockets.
 - Enforcing configured HTTP/WebSocket origins.
@@ -500,7 +501,7 @@ GET /ws
 The WebSocket endpoint accepts dashboard clients and sends a subscription acknowledgement. It is intended for browser and Electron clients; both must connect from an allowed origin.
 When the realtime bridge is enabled, the API forwards matching NATS events to subscribed clients with topic names such as `jobs`, `applications`, and `notifications`.
 Review status changes are also broadcast to `applications` WebSocket subscribers.
-Automation handoff creates an `automation_runs` record and selects the approved resume and optional approved cover letter. The automation worker must still stop before final submission.
+Automation handoff creates an `automation_runs` record, selects the approved resume and optional approved cover letter, and publishes `applications.automation.approved` plus `automation.run.requested` to JetStream. The automation worker must still stop before final submission.
 
 ## Running the React UI
 

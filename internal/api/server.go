@@ -13,14 +13,16 @@ import (
 	"github.com/gorilla/websocket"
 
 	"hedhuntr/internal/config"
+	"hedhuntr/internal/events"
 	"hedhuntr/internal/store"
 )
 
 type Server struct {
-	cfg      config.API
-	store    *store.Store
-	hub      *Hub
-	upgrader websocket.Upgrader
+	cfg       config.API
+	store     *store.Store
+	hub       *Hub
+	publisher EventPublisher
+	upgrader  websocket.Upgrader
 }
 
 func NewServer(ctx context.Context, cfg config.API) (*Server, error) {
@@ -40,7 +42,23 @@ func NewServer(ctx context.Context, cfg config.API) (*Server, error) {
 }
 
 func (s *Server) Close() error {
+	if closer, ok := s.publisher.(interface{ Close() }); ok {
+		closer.Close()
+	}
 	return s.store.Close()
+}
+
+func (s *Server) SetPublisher(publisher EventPublisher) {
+	s.publisher = publisher
+}
+
+func (s *Server) StartPublisher(ctx context.Context, logger *slog.Logger) error {
+	publisher := NewJetStreamPublisher(s.cfg, logger)
+	if err := publisher.Start(ctx); err != nil {
+		return err
+	}
+	s.publisher = publisher
+	return nil
 }
 
 func (s *Server) StartRealtime(ctx context.Context, logger *slog.Logger) error {
@@ -144,6 +162,10 @@ func (s *Server) handleApproveAutomation(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
+	if err := s.publishAutomationHandoff(r.Context(), result); err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+		return
+	}
 	s.hub.Broadcast(WSMessage{
 		Type:       "event",
 		Topic:      "applications",
@@ -156,6 +178,36 @@ func (s *Server) handleApproveAutomation(w http.ResponseWriter, r *http.Request)
 		},
 	})
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) publishAutomationHandoff(ctx context.Context, result store.AutomationHandoffResult) error {
+	if s.publisher == nil {
+		return fmt.Errorf("api event publisher is unavailable")
+	}
+	now := time.Now().UTC()
+	correlationID := events.StableID("automation-handoff", fmt.Sprintf("%d", result.ApplicationID), fmt.Sprintf("%d", result.AutomationRun.ID))
+	approved := events.NewApplicationAutomationApproved("api", correlationID, events.ApplicationAutomationApprovedPayload{
+		ApplicationID:         result.ApplicationID,
+		JobID:                 result.AutomationRun.JobID,
+		CandidateProfileID:    result.AutomationRun.CandidateProfileID,
+		AutomationRunID:       result.AutomationRun.ID,
+		ResumeMaterialID:      result.AutomationRun.ResumeMaterialID,
+		CoverLetterMaterialID: result.AutomationRun.CoverLetterMaterialID,
+		ApprovedAt:            now,
+	})
+	if err := s.publisher.Publish(ctx, events.SubjectApplicationsAutomationApproved, approved); err != nil {
+		return err
+	}
+	requested := events.NewAutomationRunRequested("api", correlationID, events.AutomationRunRequestedPayload{
+		AutomationRunID:       result.AutomationRun.ID,
+		ApplicationID:         result.ApplicationID,
+		JobID:                 result.AutomationRun.JobID,
+		CandidateProfileID:    result.AutomationRun.CandidateProfileID,
+		ResumeMaterialID:      result.AutomationRun.ResumeMaterialID,
+		CoverLetterMaterialID: result.AutomationRun.CoverLetterMaterialID,
+		RequestedAt:           now,
+	})
+	return s.publisher.Publish(ctx, events.SubjectAutomationRunRequested, requested)
 }
 
 func (s *Server) handleAutomationPacket(w http.ResponseWriter, r *http.Request) {

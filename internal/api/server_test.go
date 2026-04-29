@@ -32,12 +32,27 @@ func newTestServer(t *testing.T) (*Server, *httptest.Server) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	server.SetPublisher(&recordingPublisher{})
 	httpServer := httptest.NewServer(server.Handler())
 	t.Cleanup(func() {
 		httpServer.Close()
 		server.Close()
 	})
 	return server, httpServer
+}
+
+type publishedEvent struct {
+	subject  string
+	envelope any
+}
+
+type recordingPublisher struct {
+	events []publishedEvent
+}
+
+func (p *recordingPublisher) Publish(_ context.Context, subject string, envelope any) error {
+	p.events = append(p.events, publishedEvent{subject: subject, envelope: envelope})
+	return nil
 }
 
 func TestHealthEndpoint(t *testing.T) {
@@ -157,6 +172,8 @@ func TestWSMessageFromNATS(t *testing.T) {
 
 func TestReviewEndpoints(t *testing.T) {
 	server, httpServer := newTestServer(t)
+	publisher := &recordingPublisher{}
+	server.SetPublisher(publisher)
 	materialID := seedReviewMaterial(t, server)
 
 	resp, err := http.Get(httpServer.URL + "/api/review/applications")
@@ -206,6 +223,15 @@ func TestReviewEndpoints(t *testing.T) {
 	}
 	if handoff.AutomationRun.ID == 0 || handoff.Packet.Materials.Resume.ID != materialID {
 		t.Fatalf("handoff = %#v", handoff)
+	}
+	if len(publisher.events) != 2 {
+		t.Fatalf("published events = %d, want 2", len(publisher.events))
+	}
+	if publisher.events[0].subject != events.SubjectApplicationsAutomationApproved {
+		t.Fatalf("first subject = %q, want %q", publisher.events[0].subject, events.SubjectApplicationsAutomationApproved)
+	}
+	if publisher.events[1].subject != events.SubjectAutomationRunRequested {
+		t.Fatalf("second subject = %q, want %q", publisher.events[1].subject, events.SubjectAutomationRunRequested)
 	}
 }
 

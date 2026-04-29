@@ -155,6 +155,7 @@ Responsibilities:
 - Provide review queue endpoints for generated resume and cover letter materials.
 - Record material review decisions such as approved, rejected, needs changes, and regeneration requested.
 - Create automation handoff packets only after required materials are approved.
+- Publish durable automation handoff events to JetStream after user approval.
 - Provide the `/ws` WebSocket endpoint for browser and Electron clients.
 - Broadcast real-time updates derived from application events and user-triggered state changes.
 - Subscribe to NATS workflow subjects and translate event envelopes into WebSocket messages.
