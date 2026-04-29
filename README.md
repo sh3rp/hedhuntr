@@ -167,7 +167,7 @@ The React/Electron UI currently supports:
 - Displaying job pipeline status, match scores, notifications, worker state, candidate profile, and resume sources.
 - Editing candidate profile name, headline, skills, preferences, salary floor, work history, projects, education, certifications, and links.
 - Showing candidate profile completeness score and missing profile inputs.
-- Reviewing generated resume and cover letter Markdown drafts.
+- Reviewing generated resume and cover letter drafts with rendered preview, raw Markdown, structural checks, section summaries, keyword chips, links, and generator review notes.
 - Approving, rejecting, requesting changes, or requesting regeneration for generated materials.
 - Approving reviewed materials for an assisted automation handoff.
 - Viewing automation runs, logs, final URLs, and review-required state.
@@ -606,4 +606,4 @@ Events use the shared envelope:
 ## Next Implementation Steps
 
 - Add ATS-specific automation adapters for supported application systems.
-- Add generated resume diff/review improvements.
+- Add notification settings UI.

@@ -522,6 +522,117 @@ button:disabled {
   white-space: pre-wrap;
 }
 
+.material-review-summary,
+.review-columns {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.material-review-summary > div {
+  padding: 10px;
+  border: 1px solid #e1e7e1;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.material-review-summary strong {
+  display: block;
+  font-size: 20px;
+}
+
+.material-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.material-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid #ccd6ce;
+  border-radius: 6px;
+  color: #1d2b28;
+  background: #ffffff;
+}
+
+.material-tabs button.active {
+  color: #ffffff;
+  border-color: #205f4d;
+  background: #205f4d;
+}
+
+.markdown-preview,
+.material-checks {
+  display: grid;
+  gap: 12px;
+  max-height: 520px;
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid #d8dfd9;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.markdown-preview h1,
+.markdown-preview h2,
+.markdown-preview h3,
+.markdown-preview p,
+.markdown-preview ul {
+  margin: 0;
+}
+
+.markdown-preview h1 {
+  font-size: 24px;
+}
+
+.markdown-preview h2 {
+  padding-top: 8px;
+  border-top: 1px solid #e8eee9;
+  font-size: 18px;
+}
+
+.markdown-preview h3 {
+  font-size: 15px;
+}
+
+.markdown-preview p,
+.markdown-preview li {
+  color: #31413d;
+  line-height: 1.55;
+}
+
+.markdown-preview a {
+  color: #205f4d;
+  font-weight: 700;
+}
+
+.material-checks {
+  max-height: none;
+}
+
+.review-columns {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.review-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.review-note-list {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: #31413d;
+}
+
 .material-actions {
   display: flex;
   flex-wrap: wrap;
@@ -962,6 +1073,7 @@ button:disabled {
   .metric-grid,
   .split-layout,
   .review-layout,
+  .material-review-summary,
   .profile-grid,
   .quality-check-grid,
   .profile-form {
@@ -1020,6 +1132,8 @@ button:disabled {
   .split-layout,
   .review-layout,
   .review-summary,
+  .material-review-summary,
+  .review-columns,
   .profile-grid,
   .quality-check-grid,
   .profile-form {

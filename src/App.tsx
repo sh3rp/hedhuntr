@@ -6,12 +6,15 @@ import {
   CalendarClock,
   CheckCircle2,
   ClipboardList,
+  Code2,
   Database,
+  Eye,
   FileCheck2,
   FileText,
   Gauge,
   Laptop,
   LayoutDashboard,
+  ListChecks,
   PlayCircle,
   Radio,
   RotateCcw,
@@ -345,6 +348,8 @@ function automationBlockReason(application: ReviewApplication) {
 
 function MaterialReviewCard({ material, onChanged }: { material: ReviewMaterial; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<"preview" | "markdown" | "checks">("preview");
+  const review = useMemo(() => reviewMaterial(material), [material]);
 
   const updateStatus = async (status: ReviewMaterialStatus) => {
     setBusy(true);
@@ -365,7 +370,24 @@ function MaterialReviewCard({ material, onChanged }: { material: ReviewMaterial;
         </div>
         <StatusPill status={material.status.replaceAll("_", " ")} />
       </div>
-      <pre className="material-preview">{material.content || "Document content is unavailable."}</pre>
+      <MaterialReviewSummary review={review} />
+      <div className="material-tabs" role="tablist" aria-label={`${material.kind} review modes`}>
+        <button className={tab === "preview" ? "active" : ""} onClick={() => setTab("preview")} type="button">
+          <Eye size={16} />
+          Preview
+        </button>
+        <button className={tab === "markdown" ? "active" : ""} onClick={() => setTab("markdown")} type="button">
+          <Code2 size={16} />
+          Markdown
+        </button>
+        <button className={tab === "checks" ? "active" : ""} onClick={() => setTab("checks")} type="button">
+          <ListChecks size={16} />
+          Checks
+        </button>
+      </div>
+      {tab === "preview" && <MarkdownPreview content={material.content} />}
+      {tab === "markdown" && <pre className="material-preview">{material.content || "Document content is unavailable."}</pre>}
+      {tab === "checks" && <MaterialChecks review={review} />}
       <div className="material-actions">
         <button className="primary-action" disabled={busy} onClick={() => updateStatus("approved")} type="button">
           <CheckCircle2 size={18} />
@@ -383,6 +405,194 @@ function MaterialReviewCard({ material, onChanged }: { material: ReviewMaterial;
       </div>
     </article>
   );
+}
+
+type MaterialReview = {
+  sections: string[];
+  bullets: string[];
+  links: string[];
+  reviewNotes: string[];
+  skills: string[];
+  warnings: string[];
+  wordCount: number;
+};
+
+function reviewMaterial(material: ReviewMaterial): MaterialReview {
+  const lines = material.content.split(/\r?\n/);
+  const sections = lines
+    .filter((line) => line.startsWith("## "))
+    .map((line) => line.replace(/^##\s+/, "").trim())
+    .filter(Boolean);
+  const bullets = lines
+    .filter((line) => line.trim().startsWith("- "))
+    .map((line) => line.trim().replace(/^-\s+/, ""))
+    .filter(Boolean);
+  const reviewIndex = lines.findIndex((line) => line.trim().toLowerCase() === "## review notes");
+  const reviewNotes = reviewIndex >= 0
+    ? lines.slice(reviewIndex + 1).filter((line) => line.trim().startsWith("- ")).map((line) => line.trim().replace(/^-\s+/, ""))
+    : [];
+  const links = [...material.content.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)].map((match) => match[1]);
+  const skills = extractSectionBullets(lines, "Relevant Skills");
+  const warnings = reviewWarnings(material, { sections, bullets, links, reviewNotes, skills, wordCount: wordCount(material.content), warnings: [] });
+  return {
+    sections,
+    bullets,
+    links,
+    reviewNotes,
+    skills,
+    warnings,
+    wordCount: wordCount(material.content)
+  };
+}
+
+function MaterialReviewSummary({ review }: { review: MaterialReview }) {
+  return (
+    <div className="material-review-summary">
+      <div>
+        <span className="field-label">Words</span>
+        <strong>{review.wordCount}</strong>
+      </div>
+      <div>
+        <span className="field-label">Sections</span>
+        <strong>{review.sections.length}</strong>
+      </div>
+      <div>
+        <span className="field-label">Bullets</span>
+        <strong>{review.bullets.length}</strong>
+      </div>
+      <div>
+        <span className="field-label">Links</span>
+        <strong>{review.links.length}</strong>
+      </div>
+    </div>
+  );
+}
+
+function MaterialChecks({ review }: { review: MaterialReview }) {
+  return (
+    <div className="material-checks">
+      {review.warnings.length > 0 ? (
+        <div className="validation-summary" role="alert">
+          <strong>Review before approving</strong>
+          <ul>
+            {review.warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <div className="quality-check complete">
+          <CheckCircle2 size={18} />
+          <div>
+            <strong>No structural warnings</strong>
+            <span>Still verify every claim against the source profile before approving.</span>
+          </div>
+        </div>
+      )}
+      <div className="review-columns">
+        <div>
+          <span className="field-label">Sections</span>
+          <div className="review-chip-list">
+            {review.sections.map((section) => <span className="skill-chip" key={section}>{section}</span>)}
+            {review.sections.length === 0 ? <span className="empty-state">No sections found.</span> : null}
+          </div>
+        </div>
+        <div>
+          <span className="field-label">Target Skills</span>
+          <div className="review-chip-list">
+            {review.skills.map((skill) => <span className="skill-chip" key={skill}>{skill}</span>)}
+            {review.skills.length === 0 ? <span className="empty-state">No relevant skills section found.</span> : null}
+          </div>
+        </div>
+      </div>
+      {review.reviewNotes.length > 0 ? (
+        <div>
+          <span className="field-label">Generator Review Notes</span>
+          <ul className="review-note-list">
+            {review.reviewNotes.map((note) => <li key={note}>{note}</li>)}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function MarkdownPreview({ content }: { content: string }) {
+  if (!content) {
+    return <div className="markdown-preview empty-state">Document content is unavailable.</div>;
+  }
+  const blocks = content.split(/\n{2,}/).map((block) => block.trim()).filter(Boolean);
+  return (
+    <div className="markdown-preview">
+      {blocks.map((block, index) => renderMarkdownBlock(block, index))}
+    </div>
+  );
+}
+
+function renderMarkdownBlock(block: string, index: number) {
+  if (block.startsWith("# ")) {
+    return <h1 key={index}>{inlineMarkdown(block.replace(/^#\s+/, ""))}</h1>;
+  }
+  if (block.startsWith("## ")) {
+    return <h2 key={index}>{inlineMarkdown(block.replace(/^##\s+/, ""))}</h2>;
+  }
+  if (block.startsWith("### ")) {
+    return <h3 key={index}>{inlineMarkdown(block.replace(/^###\s+/, ""))}</h3>;
+  }
+  const lines = block.split(/\r?\n/);
+  if (lines.every((line) => line.trim().startsWith("- "))) {
+    return (
+      <ul key={index}>
+        {lines.map((line) => <li key={line}>{inlineMarkdown(line.trim().replace(/^-\s+/, ""))}</li>)}
+      </ul>
+    );
+  }
+  return <p key={index}>{inlineMarkdown(block.replace(/\n/g, " "))}</p>;
+}
+
+function inlineMarkdown(value: string) {
+  const parts: ReactNode[] = [];
+  const pattern = /(\[[^\]]+\]\([^)]+\)|_[^_]+_)/g;
+  let last = 0;
+  for (const match of value.matchAll(pattern)) {
+    const index = match.index ?? 0;
+    if (index > last) parts.push(value.slice(last, index));
+    const token = match[0];
+    const link = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (link) {
+      parts.push(<a href={link[2]} key={`${index}-${token}`} rel="noreferrer" target="_blank">{link[1]}</a>);
+    } else {
+      parts.push(<em key={`${index}-${token}`}>{token.slice(1, -1)}</em>);
+    }
+    last = index + token.length;
+  }
+  if (last < value.length) parts.push(value.slice(last));
+  return parts;
+}
+
+function extractSectionBullets(lines: string[], section: string) {
+  const start = lines.findIndex((line) => line.trim().toLowerCase() === `## ${section}`.toLowerCase());
+  if (start < 0) return [];
+  const values: string[] = [];
+  for (const line of lines.slice(start + 1)) {
+    if (line.startsWith("## ")) break;
+    if (line.trim().startsWith("- ")) values.push(line.trim().replace(/^-\s+/, ""));
+  }
+  return values;
+}
+
+function reviewWarnings(material: ReviewMaterial, review: MaterialReview) {
+  const warnings: string[] = [];
+  if (!material.content.trim()) warnings.push("Generated document content is missing.");
+  if (material.kind === "resume" && !review.sections.includes("Review Notes")) warnings.push("Resume is missing generator review notes.");
+  if (material.kind === "resume" && !review.sections.includes("Selected Highlights")) warnings.push("Resume is missing selected highlights.");
+  if (material.kind === "cover_letter" && review.wordCount > 500) warnings.push("Cover letter is longer than 500 words.");
+  if (review.reviewNotes.some((note) => note.toLowerCase().includes("verify"))) warnings.push("Generator explicitly requested verification before use.");
+  return warnings;
+}
+
+function wordCount(value: string) {
+  return value.trim() ? value.trim().split(/\s+/).length : 0;
 }
 
 function statusNote(status: ReviewMaterialStatus) {

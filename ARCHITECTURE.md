@@ -127,6 +127,7 @@ Responsibilities:
 - Connect to the Go API WebSocket endpoint for real-time updates.
 - Provide human approval flows for generated resumes, cover letters, application answers, and final submissions.
 - Render a review queue for generated resume and cover letter drafts.
+- Render generated materials as preview, raw Markdown, structural checks, extracted sections, target skills, links, and generator review notes.
 - Allow approve, reject, needs-changes, and regenerate-review actions before automation can use generated materials.
 - Show source run status, event processing state, notification results, and automation failures.
 
