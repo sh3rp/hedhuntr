@@ -5,6 +5,7 @@ export type ViewKey =
   | "jobs"
   | "pipeline"
   | "review"
+  | "automation"
   | "profile"
   | "resumes"
   | "notifications"
@@ -97,6 +98,22 @@ export type ReviewApplication = {
   materials: ReviewMaterial[];
 };
 
+export type CandidateProfile = {
+  id?: number;
+  name: string;
+  headline?: string;
+  skills: string[];
+  preferred_titles: string[];
+  preferred_locations: string[];
+  remote_preference?: "remote" | "hybrid" | "onsite" | "";
+  min_salary?: number | null;
+  work_history: unknown[];
+  projects: unknown[];
+  education: unknown[];
+  certifications: unknown[];
+  links: unknown[];
+};
+
 export type AutomationRun = {
   id: number;
   applicationId: number;
@@ -105,8 +122,29 @@ export type AutomationRun = {
   status: "requested" | "started" | "review_required" | "failed" | "submitted";
   resumeMaterialId: number;
   coverLetterMaterialId?: number;
+  finalUrl?: string;
+  error?: string;
   requestedAt: string;
+  startedAt?: string;
+  reviewRequiredAt?: string;
+  finishedAt?: string;
   updatedAt: string;
+};
+
+export type AutomationLog = {
+  id: number;
+  runId: number;
+  level: "info" | "warn" | "error" | string;
+  message: string;
+  details: Record<string, unknown>;
+  createdAt: string;
+};
+
+export type AutomationRunView = AutomationRun & {
+  jobTitle: string;
+  company: string;
+  location: string;
+  logs: AutomationLog[];
 };
 
 export type AutomationHandoff = {

@@ -152,9 +152,11 @@ Responsibilities:
 
 - Serve the React application in production or expose an API for a separately hosted frontend.
 - Provide JSON endpoints for jobs, applications, candidate profile, documents, interviews, notifications, and settings.
+- Validate and persist candidate profile edits for matching and resume generation.
 - Provide review queue endpoints for generated resume and cover letter materials.
 - Record material review decisions such as approved, rejected, needs changes, and regeneration requested.
 - Create automation handoff packets only after required materials are approved.
+- Expose automation run state, logs, and manual status controls.
 - Publish durable automation handoff events to JetStream after user approval.
 - Provide the `/ws` WebSocket endpoint for browser and Electron clients.
 - Broadcast real-time updates derived from application events and user-triggered state changes.

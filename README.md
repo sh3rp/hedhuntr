@@ -146,9 +146,11 @@ The API Service currently supports:
 
 - Serving dashboard data from SQLite over HTTP.
 - Exposing health, jobs, pipeline, profile, resume source, notification, and worker endpoints.
+- Updating candidate profile core fields through the API.
 - Exposing review queue endpoints for generated application materials.
 - Updating generated material status for approve, reject, needs-changes, and regeneration-requested actions.
 - Creating automation handoff packets from approved application materials.
+- Exposing automation run state, logs, and run control actions.
 - Publishing durable automation handoff events to JetStream.
 - Providing WebSocket subscriptions for React and Electron clients.
 - Subscribing to NATS workflow events and broadcasting live dashboard updates over WebSockets.
@@ -159,9 +161,12 @@ The React/Electron UI currently supports:
 
 - Loading live dashboard data from the Go API.
 - Displaying job pipeline status, match scores, notifications, worker state, candidate profile, and resume sources.
+- Editing candidate profile name, headline, skills, preferences, and salary floor.
 - Reviewing generated resume and cover letter Markdown drafts.
 - Approving, rejecting, requesting changes, or requesting regeneration for generated materials.
 - Approving reviewed materials for an assisted automation handoff.
+- Viewing automation runs, logs, final URLs, and review-required state.
+- Marking automation runs submitted, failed, or retrying them with durable worker events.
 - Running as a browser UI through Vite.
 - Running as a desktop shell through Electron.
 
@@ -488,11 +493,16 @@ GET /api/health
 GET /api/jobs
 GET /api/pipeline
 GET /api/profile
+PUT /api/profile
 GET /api/resume-sources
 GET /api/review/applications
 POST /api/review/materials/{id}/status
 POST /api/applications/{id}/approve-automation
 GET /api/applications/{id}/packet
+GET /api/automation/runs
+POST /api/automation/runs/{id}/mark-submitted
+POST /api/automation/runs/{id}/fail
+POST /api/automation/runs/{id}/retry
 GET /api/notifications
 GET /api/workers
 GET /ws
@@ -585,5 +595,5 @@ Events use the shared envelope:
 ## Next Implementation Steps
 
 - Add ATS-specific automation adapters for supported application systems.
-- Add candidate profile API endpoints.
+- Expand profile editing to work history, projects, education, certifications, and links.
 - Add interview tracking.

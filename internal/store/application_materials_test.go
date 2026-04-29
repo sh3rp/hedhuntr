@@ -135,4 +135,26 @@ func TestApplicationReadyContextAndMaterials(t *testing.T) {
 	if review.Status != "review_required" {
 		t.Fatalf("review.Status = %q, want review_required", review.Status)
 	}
+
+	runs, err := st.APIAutomationRuns(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) != 1 || len(runs[0].Logs) != 1 {
+		t.Fatalf("automation runs = %#v, want one run with one log", runs)
+	}
+	submitted, err := st.MarkAutomationSubmitted(ctx, started.ID, "https://example.test/submitted")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if submitted.Status != "submitted" {
+		t.Fatalf("submitted.Status = %q, want submitted", submitted.Status)
+	}
+	retry, err := st.RetryAutomationRun(ctx, submitted.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if retry.ID == submitted.ID || retry.Status != "requested" {
+		t.Fatalf("retry = %#v, want new requested run", retry)
+	}
 }

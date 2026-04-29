@@ -14,6 +14,7 @@ import (
 
 	"hedhuntr/internal/config"
 	"hedhuntr/internal/events"
+	"hedhuntr/internal/profile"
 	"hedhuntr/internal/store"
 )
 
@@ -71,11 +72,16 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/jobs", s.handleJobs)
 	mux.HandleFunc("GET /api/pipeline", s.handlePipeline)
 	mux.HandleFunc("GET /api/profile", s.handleProfile)
+	mux.HandleFunc("PUT /api/profile", s.handleUpdateProfile)
 	mux.HandleFunc("GET /api/resume-sources", s.handleResumeSources)
 	mux.HandleFunc("GET /api/review/applications", s.handleReviewApplications)
 	mux.HandleFunc("POST /api/review/materials/{id}/status", s.handleReviewMaterialStatus)
 	mux.HandleFunc("POST /api/applications/{id}/approve-automation", s.handleApproveAutomation)
 	mux.HandleFunc("GET /api/applications/{id}/packet", s.handleAutomationPacket)
+	mux.HandleFunc("GET /api/automation/runs", s.handleAutomationRuns)
+	mux.HandleFunc("POST /api/automation/runs/{id}/mark-submitted", s.handleAutomationMarkSubmitted)
+	mux.HandleFunc("POST /api/automation/runs/{id}/fail", s.handleAutomationFail)
+	mux.HandleFunc("POST /api/automation/runs/{id}/retry", s.handleAutomationRetry)
 	mux.HandleFunc("GET /api/notifications", s.handleNotifications)
 	mux.HandleFunc("GET /api/workers", s.handleWorkers)
 	mux.HandleFunc("GET /ws", s.handleWebSocket)
@@ -102,6 +108,35 @@ func (s *Server) handlePipeline(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
 	profile, err := s.store.FirstFullCandidateProfile(r.Context())
 	writeResult(w, profile, err)
+}
+
+func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
+	var request profile.Profile
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+		return
+	}
+	id, err := s.store.UpsertFullCandidateProfile(r.Context(), request)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	updated, err := s.store.LoadFullCandidateProfile(r.Context(), id)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	s.hub.Broadcast(WSMessage{
+		Type:       "event",
+		Topic:      "profile",
+		EventType:  "CandidateProfileUpdated",
+		OccurredAt: time.Now().UTC().Format(time.RFC3339Nano),
+		Payload: map[string]any{
+			"profile_id": updated.ID,
+			"name":       updated.Name,
+		},
+	})
+	writeJSON(w, http.StatusOK, updated)
 }
 
 func (s *Server) handleResumeSources(w http.ResponseWriter, r *http.Request) {
@@ -198,14 +233,26 @@ func (s *Server) publishAutomationHandoff(ctx context.Context, result store.Auto
 	if err := s.publisher.Publish(ctx, events.SubjectApplicationsAutomationApproved, approved); err != nil {
 		return err
 	}
+	return s.publishAutomationRunRequestedWithCorrelation(ctx, result.AutomationRun, correlationID, now)
+}
+
+func (s *Server) publishAutomationRunRequested(ctx context.Context, run store.AutomationRun) error {
+	correlationID := events.StableID("automation-retry", fmt.Sprintf("%d", run.ApplicationID), fmt.Sprintf("%d", run.ID))
+	return s.publishAutomationRunRequestedWithCorrelation(ctx, run, correlationID, time.Now().UTC())
+}
+
+func (s *Server) publishAutomationRunRequestedWithCorrelation(ctx context.Context, run store.AutomationRun, correlationID string, requestedAt time.Time) error {
+	if s.publisher == nil {
+		return fmt.Errorf("api event publisher is unavailable")
+	}
 	requested := events.NewAutomationRunRequested("api", correlationID, events.AutomationRunRequestedPayload{
-		AutomationRunID:       result.AutomationRun.ID,
-		ApplicationID:         result.ApplicationID,
-		JobID:                 result.AutomationRun.JobID,
-		CandidateProfileID:    result.AutomationRun.CandidateProfileID,
-		ResumeMaterialID:      result.AutomationRun.ResumeMaterialID,
-		CoverLetterMaterialID: result.AutomationRun.CoverLetterMaterialID,
-		RequestedAt:           now,
+		AutomationRunID:       run.ID,
+		ApplicationID:         run.ApplicationID,
+		JobID:                 run.JobID,
+		CandidateProfileID:    run.CandidateProfileID,
+		ResumeMaterialID:      run.ResumeMaterialID,
+		CoverLetterMaterialID: run.CoverLetterMaterialID,
+		RequestedAt:           requestedAt,
 	})
 	return s.publisher.Publish(ctx, events.SubjectAutomationRunRequested, requested)
 }
@@ -218,6 +265,91 @@ func (s *Server) handleAutomationPacket(w http.ResponseWriter, r *http.Request) 
 	}
 	packet, err := s.store.AutomationPacket(r.Context(), id)
 	writeResult(w, packet, err)
+}
+
+func (s *Server) handleAutomationRuns(w http.ResponseWriter, r *http.Request) {
+	runs, err := s.store.APIAutomationRuns(r.Context())
+	writeResult(w, runs, err)
+}
+
+func (s *Server) handleAutomationMarkSubmitted(w http.ResponseWriter, r *http.Request) {
+	id, err := parsePathID(r, "id")
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	var request struct {
+		FinalURL string `json:"finalUrl"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+		return
+	}
+	run, err := s.store.MarkAutomationSubmitted(r.Context(), id, request.FinalURL)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	s.broadcastAutomationRun("AutomationRunSubmitted", run)
+	writeJSON(w, http.StatusOK, run)
+}
+
+func (s *Server) handleAutomationFail(w http.ResponseWriter, r *http.Request) {
+	id, err := parsePathID(r, "id")
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	var request struct {
+		Message string `json:"message"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+		return
+	}
+	if strings.TrimSpace(request.Message) == "" {
+		request.Message = "Marked failed by user."
+	}
+	run, err := s.store.MarkAutomationFailed(r.Context(), id, request.Message)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	s.broadcastAutomationRun("AutomationRunFailed", run)
+	writeJSON(w, http.StatusOK, run)
+}
+
+func (s *Server) handleAutomationRetry(w http.ResponseWriter, r *http.Request) {
+	id, err := parsePathID(r, "id")
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	run, err := s.store.RetryAutomationRun(r.Context(), id)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	if err := s.publishAutomationRunRequested(r.Context(), run); err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+		return
+	}
+	s.broadcastAutomationRun("AutomationRunRequested", run)
+	writeJSON(w, http.StatusOK, run)
+}
+
+func (s *Server) broadcastAutomationRun(eventType string, run store.AutomationRun) {
+	s.hub.Broadcast(WSMessage{
+		Type:       "event",
+		Topic:      "automation",
+		EventType:  eventType,
+		OccurredAt: time.Now().UTC().Format(time.RFC3339Nano),
+		Payload: map[string]any{
+			"automation_run_id": run.ID,
+			"application_id":    run.ApplicationID,
+			"status":            run.Status,
+		},
+	})
 }
 
 func (s *Server) handleNotifications(w http.ResponseWriter, r *http.Request) {
@@ -273,7 +405,7 @@ func (s *Server) cors(next http.Handler) http.Handler {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
 		}
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
@@ -312,4 +444,12 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	if err := json.NewEncoder(w).Encode(value); err != nil {
 		fmt.Fprintf(w, `{"error":%q}`, err.Error())
 	}
+}
+
+func parsePathID(r *http.Request, name string) (int64, error) {
+	id, err := strconv.ParseInt(r.PathValue(name), 10, 64)
+	if err != nil || id <= 0 {
+		return 0, fmt.Errorf("invalid %s", name)
+	}
+	return id, nil
 }

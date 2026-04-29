@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   PlayCircle,
   Radio,
+  RotateCcw,
   Search,
   Settings,
   UserRound,
@@ -19,16 +20,17 @@ import {
   WifiOff
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { approveApplicationForAutomation, loadDashboardData, updateReviewMaterialStatus, type DashboardData } from "./api/client";
+import { approveApplicationForAutomation, failAutomationRun, loadDashboardData, markAutomationSubmitted, retryAutomationRun, saveCandidateProfile, updateReviewMaterialStatus, type DashboardData } from "./api/client";
 import { jobs as mockJobs, notifications as mockNotifications, pipeline as mockPipeline, resumeSources as mockResumeSources, workers as mockWorkers } from "./data/mockData";
 import { useRealtime } from "./hooks/useRealtime";
-import type { Job, JobStatus, NavItem, RealtimeEvent, ReviewApplication, ReviewMaterial, ReviewMaterialStatus, ViewKey } from "./types";
+import type { AutomationRunView, CandidateProfile, Job, JobStatus, NavItem, RealtimeEvent, ReviewApplication, ReviewMaterial, ReviewMaterialStatus, ViewKey } from "./types";
 
 const navItems: NavItem[] = [
   { key: "overview", label: "Overview", icon: LayoutDashboard },
   { key: "jobs", label: "Jobs", icon: Search },
   { key: "pipeline", label: "Pipeline", icon: ClipboardList },
   { key: "review", label: "Review", icon: FileCheck2 },
+  { key: "automation", label: "Automation", icon: PlayCircle },
   { key: "profile", label: "Profile", icon: UserRound },
   { key: "resumes", label: "Resumes", icon: FileText },
   { key: "notifications", label: "Notifications", icon: Bell },
@@ -54,6 +56,7 @@ export function App() {
     profile: null,
     resumeSources: mockResumeSources,
     reviewApplications: [],
+    automationRuns: [],
     notifications: mockNotifications,
     workers: mockWorkers
   });
@@ -151,7 +154,8 @@ export function App() {
         {view === "jobs" && <JobsView rows={data.jobs} />}
         {view === "pipeline" && <PipelineView rows={data.jobs} stages={data.pipeline} />}
         {view === "review" && <ReviewView applications={data.reviewApplications} onChanged={refreshDashboard} />}
-        {view === "profile" && <ProfileView profile={data.profile} />}
+        {view === "automation" && <AutomationView runs={data.automationRuns} onChanged={refreshDashboard} />}
+        {view === "profile" && <ProfileView onChanged={refreshDashboard} profile={data.profile} />}
         {view === "resumes" && <ResumesView sources={data.resumeSources} />}
         {view === "notifications" && <NotificationsView rows={data.notifications} />}
         {view === "system" && <SystemView realtimeEvents={realtime.events} workers={data.workers} />}
@@ -389,32 +393,178 @@ function statusNote(status: ReviewMaterialStatus) {
   }
 }
 
-function ProfileView({ profile }: { profile: unknown }) {
-  const profileRecord = profile as { name?: string; headline?: string; skills?: string[]; preferred_titles?: string[]; remote_preference?: string; min_salary?: number } | null;
+function AutomationView({ runs, onChanged }: { runs: AutomationRunView[]; onChanged: () => void }) {
+  const [busyID, setBusyID] = useState<number | null>(null);
+
+  const runAction = async (run: AutomationRunView, action: "submitted" | "failed" | "retry") => {
+    setBusyID(run.id);
+    try {
+      if (action === "submitted") {
+        await markAutomationSubmitted(run.id, run.finalUrl ?? "");
+      } else if (action === "failed") {
+        await failAutomationRun(run.id, "Marked failed by user.");
+      } else {
+        await retryAutomationRun(run.id);
+      }
+      onChanged();
+    } finally {
+      setBusyID(null);
+    }
+  };
+
+  if (runs.length === 0) {
+    return (
+      <section className="panel">
+        <PanelHeader title="Automation Runs" icon={PlayCircle} />
+        <span className="empty-state">No automation runs have been requested.</span>
+      </section>
+    );
+  }
+
+  return (
+    <div className="view-stack">
+      {runs.map((run) => (
+        <section className="panel automation-card" key={run.id}>
+          <div className="automation-header">
+            <div>
+              <strong>{run.jobTitle}</strong>
+              <span>{run.company} · {run.location || "Location not listed"}</span>
+            </div>
+            <StatusPill status={run.status.replaceAll("_", " ")} />
+          </div>
+          <div className="review-summary">
+            <div>
+              <span className="field-label">Run</span>
+              <strong>#{run.id}</strong>
+            </div>
+            <div>
+              <span className="field-label">Requested</span>
+              <strong>{run.requestedAt}</strong>
+            </div>
+            <div>
+              <span className="field-label">Final URL</span>
+              <strong>{run.finalUrl || "Pending"}</strong>
+            </div>
+          </div>
+          {run.error && <div className="automation-error">{run.error}</div>}
+          <div className="material-actions">
+            <button className="primary-action" disabled={busyID === run.id || run.status === "submitted"} onClick={() => runAction(run, "submitted")} type="button">
+              <CheckCircle2 size={18} />
+              Mark Submitted
+            </button>
+            <button className="secondary-action danger" disabled={busyID === run.id || run.status === "submitted"} onClick={() => runAction(run, "failed")} type="button">
+              Fail
+            </button>
+            <button className="secondary-action" disabled={busyID === run.id} onClick={() => runAction(run, "retry")} type="button">
+              <RotateCcw size={18} />
+              Retry
+            </button>
+          </div>
+          <div className="event-feed automation-logs">
+            {run.logs.length === 0 ? (
+              <span className="empty-state">No logs recorded for this run.</span>
+            ) : (
+              run.logs.map((log) => (
+                <div className="event-row" key={log.id}>
+                  <strong>{log.message}</strong>
+                  <span>{log.createdAt}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function ProfileView({ profile, onChanged }: { profile: CandidateProfile | null; onChanged: () => void }) {
+  const initial = profile ?? emptyProfile();
+  const [draft, setDraft] = useState<CandidateProfile>(initial);
+  const [skillsText, setSkillsText] = useState(initial.skills.join(", "));
+  const [titlesText, setTitlesText] = useState(initial.preferred_titles.join(", "));
+  const [locationsText, setLocationsText] = useState(initial.preferred_locations.join(", "));
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const next = profile ?? emptyProfile();
+    setDraft(next);
+    setSkillsText(next.skills.join(", "));
+    setTitlesText(next.preferred_titles.join(", "));
+    setLocationsText(next.preferred_locations.join(", "));
+  }, [profile]);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await saveCandidateProfile({
+        ...draft,
+        skills: csv(skillsText),
+        preferred_titles: csv(titlesText),
+        preferred_locations: csv(locationsText),
+        min_salary: draft.min_salary ? Number(draft.min_salary) : null
+      });
+      onChanged();
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="view-stack">
       <section className="panel profile-panel">
         <PanelHeader title="Candidate Profile" icon={UserRound} />
-        <div className="profile-grid">
-          <div>
+        <div className="profile-form">
+          <label>
             <span className="field-label">Name</span>
-            <strong>{profileRecord?.name ?? "Example Candidate"}</strong>
-          </div>
-          <div>
-            <span className="field-label">Preference</span>
-            <strong>{profileRecord?.remote_preference ?? "Remote"}{profileRecord?.min_salary ? `, $${Math.round(profileRecord.min_salary / 1000)}k minimum` : ""}</strong>
-          </div>
-          <div>
-            <span className="field-label">Titles</span>
-            <strong>{profileRecord?.preferred_titles?.join(", ") ?? "Backend, Platform, Software Engineer"}</strong>
-          </div>
+            <input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
+          </label>
+          <label>
+            <span className="field-label">Headline</span>
+            <input value={draft.headline ?? ""} onChange={(event) => setDraft({ ...draft, headline: event.target.value })} />
+          </label>
+          <label>
+            <span className="field-label">Remote Preference</span>
+            <select value={draft.remote_preference ?? ""} onChange={(event) => setDraft({ ...draft, remote_preference: event.target.value as CandidateProfile["remote_preference"] })}>
+              <option value="">Unset</option>
+              <option value="remote">Remote</option>
+              <option value="hybrid">Hybrid</option>
+              <option value="onsite">Onsite</option>
+            </select>
+          </label>
+          <label>
+            <span className="field-label">Minimum Salary</span>
+            <input
+              type="number"
+              value={draft.min_salary ?? ""}
+              onChange={(event) => setDraft({ ...draft, min_salary: event.target.value === "" ? null : Number(event.target.value) })}
+            />
+          </label>
+          <label className="wide-field">
+            <span className="field-label">Skills</span>
+            <input value={skillsText} onChange={(event) => setSkillsText(event.target.value)} />
+          </label>
+          <label className="wide-field">
+            <span className="field-label">Preferred Titles</span>
+            <input value={titlesText} onChange={(event) => setTitlesText(event.target.value)} />
+          </label>
+          <label className="wide-field">
+            <span className="field-label">Preferred Locations</span>
+            <input value={locationsText} onChange={(event) => setLocationsText(event.target.value)} />
+          </label>
         </div>
         <div className="skill-row">
-          {(profileRecord?.skills ?? ["Go", "TypeScript", "React", "NATS", "SQLite", "Docker", "AWS"]).map((skill) => (
+          {csv(skillsText).map((skill) => (
             <span className="skill-chip" key={skill}>
               {skill}
             </span>
           ))}
+        </div>
+        <div className="material-actions profile-actions">
+          <button className="primary-action" disabled={saving} onClick={save} type="button">
+            <CheckCircle2 size={18} />
+            Save Profile
+          </button>
         </div>
       </section>
       <section className="panel">
@@ -423,6 +573,30 @@ function ProfileView({ profile }: { profile: unknown }) {
       </section>
     </div>
   );
+}
+
+function emptyProfile(): CandidateProfile {
+  return {
+    name: "",
+    headline: "",
+    skills: [],
+    preferred_titles: [],
+    preferred_locations: [],
+    remote_preference: "",
+    min_salary: null,
+    work_history: [],
+    projects: [],
+    education: [],
+    certifications: [],
+    links: []
+  };
+}
+
+function csv(value: string) {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function ResumesView({ sources }: { sources: typeof mockResumeSources }) {

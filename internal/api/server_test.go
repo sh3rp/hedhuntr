@@ -233,6 +233,101 @@ func TestReviewEndpoints(t *testing.T) {
 	if publisher.events[1].subject != events.SubjectAutomationRunRequested {
 		t.Fatalf("second subject = %q, want %q", publisher.events[1].subject, events.SubjectAutomationRunRequested)
 	}
+
+	resp, err = http.Get(httpServer.URL + "/api/automation/runs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("automation runs status = %d, want 200", resp.StatusCode)
+	}
+	var runs []store.APIAutomationRun
+	if err := json.NewDecoder(resp.Body).Decode(&runs); err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) != 1 {
+		t.Fatalf("runs = %#v, want one run", runs)
+	}
+
+	resp, err = http.Post(httpServer.URL+"/api/automation/runs/"+strconvFormat(handoff.AutomationRun.ID)+"/fail", "application/json", bytes.NewBufferString(`{"message":"manual fail"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("fail status = %d, want 200", resp.StatusCode)
+	}
+
+	resp, err = http.Post(httpServer.URL+"/api/automation/runs/"+strconvFormat(handoff.AutomationRun.ID)+"/retry", "application/json", bytes.NewBufferString(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("retry status = %d, want 200", resp.StatusCode)
+	}
+	if len(publisher.events) != 3 {
+		t.Fatalf("published events after retry = %d, want 3", len(publisher.events))
+	}
+	if publisher.events[2].subject != events.SubjectAutomationRunRequested {
+		t.Fatalf("retry subject = %q, want %q", publisher.events[2].subject, events.SubjectAutomationRunRequested)
+	}
+}
+
+func TestUpdateProfileEndpoint(t *testing.T) {
+	_, httpServer := newTestServer(t)
+	body := bytes.NewBufferString(`{
+		"name":"Alex Example",
+		"headline":"Backend engineer",
+		"skills":["Go","SQLite"],
+		"preferred_titles":["Backend Engineer"],
+		"preferred_locations":["Remote"],
+		"remote_preference":"remote",
+		"min_salary":150000,
+		"work_history":[],
+		"projects":[],
+		"education":[],
+		"certifications":[],
+		"links":[]
+	}`)
+	req, err := http.NewRequest(http.MethodPut, httpServer.URL+"/api/profile", body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	var saved profile.Profile
+	if err := json.NewDecoder(resp.Body).Decode(&saved); err != nil {
+		t.Fatal(err)
+	}
+	if saved.ID == 0 || saved.Name != "Alex Example" || len(saved.Skills) != 2 {
+		t.Fatalf("saved profile = %#v", saved)
+	}
+}
+
+func TestUpdateProfileEndpointValidation(t *testing.T) {
+	_, httpServer := newTestServer(t)
+	req, err := http.NewRequest(http.MethodPut, httpServer.URL+"/api/profile", bytes.NewBufferString(`{"name":"","skills":[]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", resp.StatusCode)
+	}
 }
 
 func seedReviewMaterial(t *testing.T, server *Server) int64 {

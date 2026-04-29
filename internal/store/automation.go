@@ -15,8 +15,30 @@ type AutomationRun struct {
 	Status                string `json:"status"`
 	ResumeMaterialID      int64  `json:"resumeMaterialId"`
 	CoverLetterMaterialID *int64 `json:"coverLetterMaterialId,omitempty"`
+	FinalURL              string `json:"finalUrl,omitempty"`
+	Error                 string `json:"error,omitempty"`
 	RequestedAt           string `json:"requestedAt"`
+	StartedAt             string `json:"startedAt,omitempty"`
+	ReviewRequiredAt      string `json:"reviewRequiredAt,omitempty"`
+	FinishedAt            string `json:"finishedAt,omitempty"`
 	UpdatedAt             string `json:"updatedAt"`
+}
+
+type APIAutomationRun struct {
+	AutomationRun
+	JobTitle string          `json:"jobTitle"`
+	Company  string          `json:"company"`
+	Location string          `json:"location"`
+	Logs     []AutomationLog `json:"logs"`
+}
+
+type AutomationLog struct {
+	ID        int64          `json:"id"`
+	RunID     int64          `json:"runId"`
+	Level     string         `json:"level"`
+	Message   string         `json:"message"`
+	Details   map[string]any `json:"details"`
+	CreatedAt string         `json:"createdAt"`
 }
 
 type AutomationPacket struct {
@@ -131,9 +153,10 @@ WHERE id = ?`,
 func (s *Store) AutomationRun(ctx context.Context, runID int64) (AutomationRun, error) {
 	var run AutomationRun
 	var coverID sql.NullInt64
+	var errorText, startedAt, reviewRequiredAt, finishedAt sql.NullString
 	err := s.db.QueryRowContext(ctx, `
 SELECT id, application_id, job_id, candidate_profile_id, status, resume_material_id, cover_letter_material_id,
-	requested_at, updated_at
+	COALESCE(final_url, ''), error, requested_at, started_at, review_required_at, finished_at, updated_at
 FROM automation_runs
 WHERE id = ?`, runID).Scan(
 		&run.ID,
@@ -143,7 +166,12 @@ WHERE id = ?`, runID).Scan(
 		&run.Status,
 		&run.ResumeMaterialID,
 		&coverID,
+		&run.FinalURL,
+		&errorText,
 		&run.RequestedAt,
+		&startedAt,
+		&reviewRequiredAt,
+		&finishedAt,
 		&run.UpdatedAt,
 	)
 	if err != nil {
@@ -153,7 +181,96 @@ WHERE id = ?`, runID).Scan(
 		value := coverID.Int64
 		run.CoverLetterMaterialID = &value
 	}
+	run.Error = errorText.String
+	run.StartedAt = startedAt.String
+	run.ReviewRequiredAt = reviewRequiredAt.String
+	run.FinishedAt = finishedAt.String
 	return run, nil
+}
+
+func (s *Store) APIAutomationRuns(ctx context.Context) ([]APIAutomationRun, error) {
+	rows, err := s.db.QueryContext(ctx, `
+SELECT ar.id, ar.application_id, ar.job_id, ar.candidate_profile_id, ar.status,
+	ar.resume_material_id, ar.cover_letter_material_id, COALESCE(ar.final_url, ''), ar.error,
+	ar.requested_at, ar.started_at, ar.review_required_at, ar.finished_at, ar.updated_at,
+	j.title, j.company, COALESCE(j.location, '')
+FROM automation_runs ar
+JOIN jobs j ON j.id = ar.job_id
+ORDER BY ar.updated_at DESC, ar.id DESC
+LIMIT 100`)
+	if err != nil {
+		return nil, fmt.Errorf("query automation runs: %w", err)
+	}
+	defer rows.Close()
+
+	runs := []APIAutomationRun{}
+	for rows.Next() {
+		var run APIAutomationRun
+		var coverID sql.NullInt64
+		var errorText, startedAt, reviewRequiredAt, finishedAt sql.NullString
+		if err := rows.Scan(
+			&run.ID,
+			&run.ApplicationID,
+			&run.JobID,
+			&run.CandidateProfileID,
+			&run.Status,
+			&run.ResumeMaterialID,
+			&coverID,
+			&run.FinalURL,
+			&errorText,
+			&run.RequestedAt,
+			&startedAt,
+			&reviewRequiredAt,
+			&finishedAt,
+			&run.UpdatedAt,
+			&run.JobTitle,
+			&run.Company,
+			&run.Location,
+		); err != nil {
+			return nil, err
+		}
+		if coverID.Valid {
+			value := coverID.Int64
+			run.CoverLetterMaterialID = &value
+		}
+		run.Error = errorText.String
+		run.StartedAt = startedAt.String
+		run.ReviewRequiredAt = reviewRequiredAt.String
+		run.FinishedAt = finishedAt.String
+		logs, err := s.AutomationLogs(ctx, run.ID)
+		if err != nil {
+			return nil, err
+		}
+		run.Logs = logs
+		runs = append(runs, run)
+	}
+	return runs, rows.Err()
+}
+
+func (s *Store) AutomationLogs(ctx context.Context, runID int64) ([]AutomationLog, error) {
+	rows, err := s.db.QueryContext(ctx, `
+SELECT id, automation_run_id, level, message, details_json, created_at
+FROM automation_logs
+WHERE automation_run_id = ?
+ORDER BY id DESC
+LIMIT 100`, runID)
+	if err != nil {
+		return nil, fmt.Errorf("query automation logs: %w", err)
+	}
+	defer rows.Close()
+
+	logs := []AutomationLog{}
+	for rows.Next() {
+		var log AutomationLog
+		var detailsJSON string
+		if err := rows.Scan(&log.ID, &log.RunID, &log.Level, &log.Message, &detailsJSON, &log.CreatedAt); err != nil {
+			return nil, err
+		}
+		log.Details = map[string]any{}
+		json.Unmarshal([]byte(detailsJSON), &log.Details)
+		logs = append(logs, log)
+	}
+	return logs, rows.Err()
 }
 
 func (s *Store) StartAutomationRun(ctx context.Context, runID int64) (AutomationRun, error) {
@@ -209,6 +326,63 @@ WHERE id = ?`, message, runID)
 		return AutomationRun{}, fmt.Errorf("mark automation failed: %w", err)
 	}
 	return s.AutomationRun(ctx, runID)
+}
+
+func (s *Store) MarkAutomationSubmitted(ctx context.Context, runID int64, finalURL string) (AutomationRun, error) {
+	run, err := s.AutomationRun(ctx, runID)
+	if err != nil {
+		return AutomationRun{}, err
+	}
+	result, err := s.db.ExecContext(ctx, `
+UPDATE automation_runs
+SET status = 'submitted',
+	final_url = COALESCE(NULLIF(?, ''), final_url),
+	finished_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+	updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+WHERE id = ? AND status IN ('review_required', 'started')`, finalURL, runID)
+	if err != nil {
+		return AutomationRun{}, fmt.Errorf("mark automation submitted: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return AutomationRun{}, err
+	}
+	if affected == 0 {
+		return AutomationRun{}, fmt.Errorf("automation run %d cannot be marked submitted", runID)
+	}
+	_, err = s.db.ExecContext(ctx, `
+UPDATE applications
+SET status = 'submitted',
+	updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+WHERE id = ?`, run.ApplicationID)
+	if err != nil {
+		return AutomationRun{}, fmt.Errorf("update application submitted status: %w", err)
+	}
+	return s.AutomationRun(ctx, runID)
+}
+
+func (s *Store) RetryAutomationRun(ctx context.Context, runID int64) (AutomationRun, error) {
+	run, err := s.AutomationRun(ctx, runID)
+	if err != nil {
+		return AutomationRun{}, err
+	}
+	result, err := s.db.ExecContext(ctx, `
+INSERT INTO automation_runs(application_id, job_id, candidate_profile_id, status, resume_material_id, cover_letter_material_id)
+VALUES(?, ?, ?, 'requested', ?, ?)`,
+		run.ApplicationID,
+		run.JobID,
+		run.CandidateProfileID,
+		run.ResumeMaterialID,
+		nullInt64Ptr(run.CoverLetterMaterialID),
+	)
+	if err != nil {
+		return AutomationRun{}, fmt.Errorf("retry automation run: %w", err)
+	}
+	newID, err := result.LastInsertId()
+	if err != nil {
+		return AutomationRun{}, err
+	}
+	return s.AutomationRun(ctx, newID)
 }
 
 func (s *Store) AddAutomationLog(ctx context.Context, params AutomationLogParams) error {
@@ -342,4 +516,11 @@ WHERE application_id = ?`, applicationID)
 		return 0, 0, fmt.Errorf("application %d has no approved resume material", applicationID)
 	}
 	return resumeID, coverID, nil
+}
+
+func nullInt64Ptr(value *int64) any {
+	if value == nil || *value <= 0 {
+		return nil
+	}
+	return *value
 }
