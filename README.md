@@ -133,10 +133,22 @@ The Resume Tuning Worker currently supports:
 - Creating draft `resume_versions` and `application_materials` records for human review.
 - Publishing `applications.materials.drafted`.
 
+The Automation Worker currently supports:
+
+- Consuming `automation.run.requested` from JetStream with a durable pull consumer.
+- Loading approved automation packets from SQLite.
+- Recording automation run status and audit log entries.
+- Preparing packet-only runs and stopping at `review_required`.
+- Publishing `automation.run.started`, `automation.run.review_required`, and `automation.run.failed`.
+- Never submitting an application.
+
 The API Service currently supports:
 
 - Serving dashboard data from SQLite over HTTP.
 - Exposing health, jobs, pipeline, profile, resume source, notification, and worker endpoints.
+- Exposing review queue endpoints for generated application materials.
+- Updating generated material status for approve, reject, needs-changes, and regeneration-requested actions.
+- Creating automation handoff packets from approved application materials.
 - Providing WebSocket subscriptions for React and Electron clients.
 - Subscribing to NATS workflow events and broadcasting live dashboard updates over WebSockets.
 - Enforcing configured HTTP/WebSocket origins.
@@ -146,6 +158,9 @@ The React/Electron UI currently supports:
 
 - Loading live dashboard data from the Go API.
 - Displaying job pipeline status, match scores, notifications, worker state, candidate profile, and resume sources.
+- Reviewing generated resume and cover letter Markdown drafts.
+- Approving, rejecting, requesting changes, or requesting regeneration for generated materials.
+- Approving reviewed materials for an assisted automation handoff.
 - Running as a browser UI through Vite.
 - Running as a desktop shell through Electron.
 
@@ -160,6 +175,7 @@ cmd/parser-worker/                Parser / enrichment worker command
 cmd/matching-worker/              Matching worker command
 cmd/notification-worker/          Notification worker command
 cmd/resume-tuning-worker/         Resume and cover letter draft worker command
+cmd/automation-worker/            Automation handoff worker command
 cmd/api/                          API service command
 cmd/profile/                      Candidate profile import command
 cmd/resume/                       Resume source import/list command
@@ -173,10 +189,12 @@ configs/parser-worker.example.json
 configs/matching-worker.example.json
 configs/notification-worker.example.json
 configs/resume-tuning-worker.example.json
+configs/automation-worker.example.json
 examples/resume.example.md
 electron/                         Electron desktop shell
 internal/config/                 Configuration loading
 internal/api/                    HTTP and WebSocket API service
+internal/automationworker/       Automation handoff worker orchestration
 internal/document/               Local document storage helpers
 internal/events/                 Event envelopes and payloads
 internal/broker/                 JetStream setup helpers
@@ -435,6 +453,22 @@ go run ./cmd/matching-worker -config configs/matching-worker.example.json -max-m
 go run ./cmd/resume-tuning-worker -config configs/resume-tuning-worker.example.json -max-messages 1
 ```
 
+## Running the Automation Worker
+
+Run the automation worker continuously:
+
+```bash
+go run ./cmd/automation-worker -config configs/automation-worker.example.json
+```
+
+Process one pending automation request and exit:
+
+```bash
+go run ./cmd/automation-worker -config configs/automation-worker.example.json -max-messages 1
+```
+
+The current automation worker runs in `packet-only` mode. It loads the approved application packet, records audit logs, marks the run `review_required`, and stops before any final submission.
+
 ## Running the API Service
 
 Start the Go API service:
@@ -444,7 +478,7 @@ go run ./cmd/api -config configs/api.example.json
 ```
 
 The example config listens on `127.0.0.1:8080`, reads from `hedhuntr.db`, allows the local Vite frontend, and allows `http://zoe.ts.shep.run:5173`.
-It also enables the realtime bridge, which subscribes to NATS subjects such as `jobs.saved`, `jobs.parsed`, `jobs.matched`, `applications.ready`, and `applications.materials.drafted`.
+It also enables the realtime bridge, which subscribes to NATS subjects such as `jobs.saved`, `jobs.parsed`, `jobs.matched`, `applications.ready`, `applications.materials.drafted`, and `automation.run.review_required`.
 
 Available endpoints:
 
@@ -454,6 +488,10 @@ GET /api/jobs
 GET /api/pipeline
 GET /api/profile
 GET /api/resume-sources
+GET /api/review/applications
+POST /api/review/materials/{id}/status
+POST /api/applications/{id}/approve-automation
+GET /api/applications/{id}/packet
 GET /api/notifications
 GET /api/workers
 GET /ws
@@ -461,6 +499,8 @@ GET /ws
 
 The WebSocket endpoint accepts dashboard clients and sends a subscription acknowledgement. It is intended for browser and Electron clients; both must connect from an allowed origin.
 When the realtime bridge is enabled, the API forwards matching NATS events to subscribed clients with topic names such as `jobs`, `applications`, and `notifications`.
+Review status changes are also broadcast to `applications` WebSocket subscribers.
+Automation handoff creates an `automation_runs` record and selects the approved resume and optional approved cover letter. The automation worker must still stop before final submission.
 
 ## Running the React UI
 
@@ -543,5 +583,6 @@ Events use the shared envelope:
 
 ## Next Implementation Steps
 
+- Add ATS-specific automation adapters for supported application systems.
 - Add candidate profile API endpoints.
-- Add user actions for application review and interview tracking.
+- Add interview tracking.

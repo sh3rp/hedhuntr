@@ -126,6 +126,8 @@ Responsibilities:
 - Call the Go API over JSON HTTP.
 - Connect to the Go API WebSocket endpoint for real-time updates.
 - Provide human approval flows for generated resumes, cover letters, application answers, and final submissions.
+- Render a review queue for generated resume and cover letter drafts.
+- Allow approve, reject, needs-changes, and regenerate-review actions before automation can use generated materials.
 - Show source run status, event processing state, notification results, and automation failures.
 
 Owns:
@@ -150,6 +152,9 @@ Responsibilities:
 
 - Serve the React application in production or expose an API for a separately hosted frontend.
 - Provide JSON endpoints for jobs, applications, candidate profile, documents, interviews, notifications, and settings.
+- Provide review queue endpoints for generated resume and cover letter materials.
+- Record material review decisions such as approved, rejected, needs changes, and regeneration requested.
+- Create automation handoff packets only after required materials are approved.
 - Provide the `/ws` WebSocket endpoint for browser and Electron clients.
 - Broadcast real-time updates derived from application events and user-triggered state changes.
 - Subscribe to NATS workflow subjects and translate event envelopes into WebSocket messages.
@@ -163,7 +168,7 @@ Owns:
 - WebSocket connection management, topic subscriptions, ping/pong heartbeats, and backpressure handling.
 - Request validation.
 - Application-facing read models.
-- User actions such as save job, approve resume, mark applied, schedule interview, and retry automation.
+- User actions such as save job, approve resume, request material changes, approve automation handoff, mark applied, schedule interview, and retry automation.
 
 Does not own:
 
@@ -390,8 +395,9 @@ Type: Go worker service.
 
 Responsibilities:
 
-- Consume `applications.ready`.
-- Prepare application packets.
+- Consume `automation.run.requested`.
+- Load approved application packets.
+- In packet-only mode, record the packet and immediately stop at `review_required`.
 - Coordinate Playwright-assisted form filling for supported sites.
 - Attach approved resume and cover letter documents.
 - Pause for user review before final submission.
@@ -502,6 +508,10 @@ Core subjects:
 | `jobs.matched` | Job was scored against the candidate profile. |
 | `applications.ready` | An application packet is ready for user review. |
 | `applications.materials.drafted` | Draft resume and cover letter materials were generated for human review. |
+| `applications.automation.approved` | Human review approved selected materials for automation handoff. |
+| `automation.run.requested` | A worker may begin assisted filling for an approved packet. |
+| `automation.run.started` | Automation worker accepted and started a requested run. |
+| `automation.run.review_required` | Automation reached a user-review checkpoint before final submission. |
 | `applications.submitted` | Application was submitted or marked submitted. |
 | `interviews.updated` | Interview state changed. |
 | `notifications.requested` | A message should be routed to configured channels. |

@@ -122,6 +122,8 @@ func topicForSubject(subject string) string {
 		return "applications"
 	case strings.HasPrefix(subject, "notifications."):
 		return "notifications"
+	case strings.HasPrefix(subject, "automation."):
+		return "automation"
 	case strings.HasPrefix(subject, "source_runs."):
 		return "source_runs"
 	default:

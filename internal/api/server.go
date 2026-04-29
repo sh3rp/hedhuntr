@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -53,6 +54,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/pipeline", s.handlePipeline)
 	mux.HandleFunc("GET /api/profile", s.handleProfile)
 	mux.HandleFunc("GET /api/resume-sources", s.handleResumeSources)
+	mux.HandleFunc("GET /api/review/applications", s.handleReviewApplications)
+	mux.HandleFunc("POST /api/review/materials/{id}/status", s.handleReviewMaterialStatus)
+	mux.HandleFunc("POST /api/applications/{id}/approve-automation", s.handleApproveAutomation)
+	mux.HandleFunc("GET /api/applications/{id}/packet", s.handleAutomationPacket)
 	mux.HandleFunc("GET /api/notifications", s.handleNotifications)
 	mux.HandleFunc("GET /api/workers", s.handleWorkers)
 	mux.HandleFunc("GET /ws", s.handleWebSocket)
@@ -84,6 +89,83 @@ func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleResumeSources(w http.ResponseWriter, r *http.Request) {
 	sources, err := s.store.ListResumeSources(r.Context())
 	writeResult(w, sources, err)
+}
+
+func (s *Server) handleReviewApplications(w http.ResponseWriter, r *http.Request) {
+	queue, err := s.store.APIReviewQueue(r.Context())
+	writeResult(w, queue, err)
+}
+
+func (s *Server) handleReviewMaterialStatus(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || id <= 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid material id"})
+		return
+	}
+	var request struct {
+		Status string `json:"status"`
+		Notes  string `json:"notes"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+		return
+	}
+	material, err := s.store.UpdateApplicationMaterialStatus(r.Context(), store.UpdateApplicationMaterialStatusParams{
+		ID:     id,
+		Status: request.Status,
+		Notes:  request.Notes,
+	})
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	s.hub.Broadcast(WSMessage{
+		Type:       "event",
+		Topic:      "applications",
+		EventType:  "ApplicationMaterialStatusChanged",
+		OccurredAt: time.Now().UTC().Format(time.RFC3339Nano),
+		Payload: map[string]any{
+			"material_id": material.ID,
+			"kind":        material.Kind,
+			"status":      material.Status,
+		},
+	})
+	writeJSON(w, http.StatusOK, material)
+}
+
+func (s *Server) handleApproveAutomation(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || id <= 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid application id"})
+		return
+	}
+	result, err := s.store.ApproveApplicationForAutomation(r.Context(), id)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	s.hub.Broadcast(WSMessage{
+		Type:       "event",
+		Topic:      "applications",
+		EventType:  "AutomationRunRequested",
+		OccurredAt: time.Now().UTC().Format(time.RFC3339Nano),
+		Payload: map[string]any{
+			"application_id":    result.ApplicationID,
+			"automation_run_id": result.AutomationRun.ID,
+			"status":            result.AutomationRun.Status,
+		},
+	})
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) handleAutomationPacket(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || id <= 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid application id"})
+		return
+	}
+	packet, err := s.store.AutomationPacket(r.Context(), id)
+	writeResult(w, packet, err)
 }
 
 func (s *Server) handleNotifications(w http.ResponseWriter, r *http.Request) {
@@ -139,7 +221,7 @@ func (s *Server) cors(next http.Handler) http.Handler {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		}
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)

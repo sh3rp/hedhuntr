@@ -1,11 +1,14 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +16,9 @@ import (
 	"github.com/gorilla/websocket"
 
 	"hedhuntr/internal/config"
+	"hedhuntr/internal/events"
+	"hedhuntr/internal/profile"
+	"hedhuntr/internal/store"
 )
 
 func newTestServer(t *testing.T) (*Server, *httptest.Server) {
@@ -147,4 +153,129 @@ func TestWSMessageFromNATS(t *testing.T) {
 	if message.Payload["title"] != "Backend Engineer" {
 		t.Fatalf("payload = %#v, missing title", message.Payload)
 	}
+}
+
+func TestReviewEndpoints(t *testing.T) {
+	server, httpServer := newTestServer(t)
+	materialID := seedReviewMaterial(t, server)
+
+	resp, err := http.Get(httpServer.URL + "/api/review/applications")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	var queue []store.APIReviewApplication
+	if err := json.NewDecoder(resp.Body).Decode(&queue); err != nil {
+		t.Fatal(err)
+	}
+	if len(queue) != 1 || len(queue[0].Materials) != 1 {
+		t.Fatalf("queue = %#v, want one application with one material", queue)
+	}
+
+	body := bytes.NewBufferString(`{"status":"approved","notes":"Approved for use."}`)
+	resp, err = http.Post(httpServer.URL+"/api/review/materials/"+strconvFormat(materialID)+"/status", "application/json", body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	var material store.APIReviewMaterial
+	if err := json.NewDecoder(resp.Body).Decode(&material); err != nil {
+		t.Fatal(err)
+	}
+	if material.Status != "approved" {
+		t.Fatalf("material.Status = %q, want approved", material.Status)
+	}
+
+	resp, err = http.Post(httpServer.URL+"/api/applications/"+strconvFormat(queue[0].ApplicationID)+"/approve-automation", "application/json", bytes.NewBufferString(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("approve automation status = %d, want 200", resp.StatusCode)
+	}
+	var handoff store.AutomationHandoffResult
+	if err := json.NewDecoder(resp.Body).Decode(&handoff); err != nil {
+		t.Fatal(err)
+	}
+	if handoff.AutomationRun.ID == 0 || handoff.Packet.Materials.Resume.ID != materialID {
+		t.Fatalf("handoff = %#v", handoff)
+	}
+}
+
+func seedReviewMaterial(t *testing.T, server *Server) int64 {
+	t.Helper()
+	ctx := context.Background()
+	profileID, err := server.store.UpsertFullCandidateProfile(ctx, profile.Profile{
+		Name:            "Alex Example",
+		Skills:          []string{"Go", "SQLite"},
+		PreferredTitles: []string{"Backend Engineer"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := server.store.SaveDiscoveredJob(ctx, events.SubjectJobsDiscovered, events.Envelope[events.JobDiscoveredPayload]{
+		EventID:        "review-event-1",
+		EventType:      events.EventJobDiscovered,
+		EventVersion:   1,
+		OccurredAt:     time.Now().UTC(),
+		Source:         "test",
+		CorrelationID:  "corr",
+		IdempotencyKey: "test:review-job",
+		Payload: events.JobDiscoveredPayload{
+			Source:       "test",
+			ExternalID:   "review-job",
+			Title:        "Backend Engineer",
+			Company:      "Acme",
+			SourceURL:    "https://example.test/jobs/1",
+			DiscoveredAt: time.Now().UTC(),
+		},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := server.store.MarkApplicationReady(ctx, result.JobID, profileID, 92); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "resume.md")
+	if err := os.WriteFile(path, []byte("# Resume\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	docID, err := server.store.CreateDocument(ctx, store.CreateDocumentParams{
+		Kind:      "tailored_resume",
+		Format:    "markdown",
+		Path:      path,
+		SHA256:    "abc",
+		SizeBytes: 9,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	app, err := server.store.GetApplicationReadyContext(ctx, result.JobID, profileID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	materialID, err := server.store.CreateApplicationMaterial(ctx, store.CreateApplicationMaterialParams{
+		ApplicationID:      app.ApplicationID,
+		JobID:              result.JobID,
+		CandidateProfileID: profileID,
+		Kind:               "resume",
+		DocumentID:         docID,
+		Status:             "draft",
+		SourceEventID:      "ready-event",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return materialID
+}
+
+func strconvFormat(value int64) string {
+	return strconv.FormatInt(value, 10)
 }

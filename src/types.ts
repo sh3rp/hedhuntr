@@ -4,6 +4,7 @@ export type ViewKey =
   | "overview"
   | "jobs"
   | "pipeline"
+  | "review"
   | "profile"
   | "resumes"
   | "notifications"
@@ -68,6 +69,50 @@ export type ResumeSource = {
   documentPath?: string;
   updatedAt?: string;
   createdAt?: string;
+};
+
+export type ReviewMaterialStatus = "draft" | "approved" | "rejected" | "needs_changes" | "regeneration_requested";
+
+export type ReviewMaterial = {
+  id: number;
+  kind: "resume" | "cover_letter" | string;
+  status: ReviewMaterialStatus;
+  notes: string;
+  documentId: number;
+  path: string;
+  content: string;
+  updatedAt: string;
+};
+
+export type ReviewApplication = {
+  applicationId: number;
+  jobId: number;
+  candidateProfileId: number;
+  jobTitle: string;
+  company: string;
+  location: string;
+  matchScore: number;
+  applicationStatus: string;
+  updatedAt: string;
+  materials: ReviewMaterial[];
+};
+
+export type AutomationRun = {
+  id: number;
+  applicationId: number;
+  jobId: number;
+  candidateProfileId: number;
+  status: "requested" | "started" | "review_required" | "failed" | "submitted";
+  resumeMaterialId: number;
+  coverLetterMaterialId?: number;
+  requestedAt: string;
+  updatedAt: string;
+};
+
+export type AutomationHandoff = {
+  applicationId: number;
+  automationRun: AutomationRun;
+  packet: unknown;
 };
 
 export type RealtimeEvent = {

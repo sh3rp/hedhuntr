@@ -8,7 +8,7 @@ import (
 )
 
 func EnsureJobsStream(js nats.JetStreamContext, streamName string) error {
-	subjects := []string{"jobs.>", "applications.>", "notifications.>"}
+	subjects := []string{"jobs.>", "applications.>", "automation.>", "notifications.>"}
 	info, err := js.StreamInfo(streamName)
 	if err == nil {
 		if streamHasSubjects(info.Config.Subjects, subjects) {

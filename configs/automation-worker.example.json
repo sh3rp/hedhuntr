@@ -1,0 +1,24 @@
+{
+  "_comment": "Example config for cmd/automation-worker. JSON does not support comments, so _comment fields are documentation and are ignored by the Go loader.",
+  "nats": {
+    "_comment": "The automation worker consumes automation.run.requested and publishes automation.run.started plus automation.run.review_required.",
+    "url": "nats://127.0.0.1:4222",
+    "stream": "JOBS",
+    "publish_timeout": "5s"
+  },
+  "sqlite": {
+    "_comment": "SQLite database file containing approved application packets and automation run state.",
+    "path": "hedhuntr.db"
+  },
+  "consumer": {
+    "_comment": "Durable pull consumer settings for automation.run.requested.",
+    "durable": "automation-worker",
+    "batch_size": 5,
+    "fetch_wait": "2s",
+    "max_in_flight": 64
+  },
+  "automation": {
+    "_comment": "packet-only prepares an approved packet and stops at user review. ATS browser adapters can be added later.",
+    "mode": "packet-only"
+  }
+}

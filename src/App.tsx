@@ -5,10 +5,12 @@ import {
   CheckCircle2,
   ClipboardList,
   Database,
+  FileCheck2,
   FileText,
   Gauge,
   Laptop,
   LayoutDashboard,
+  PlayCircle,
   Radio,
   Search,
   Settings,
@@ -17,15 +19,16 @@ import {
   WifiOff
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { loadDashboardData, type DashboardData } from "./api/client";
+import { approveApplicationForAutomation, loadDashboardData, updateReviewMaterialStatus, type DashboardData } from "./api/client";
 import { jobs as mockJobs, notifications as mockNotifications, pipeline as mockPipeline, resumeSources as mockResumeSources, workers as mockWorkers } from "./data/mockData";
 import { useRealtime } from "./hooks/useRealtime";
-import type { Job, JobStatus, NavItem, RealtimeEvent, ViewKey } from "./types";
+import type { Job, JobStatus, NavItem, RealtimeEvent, ReviewApplication, ReviewMaterial, ReviewMaterialStatus, ViewKey } from "./types";
 
 const navItems: NavItem[] = [
   { key: "overview", label: "Overview", icon: LayoutDashboard },
   { key: "jobs", label: "Jobs", icon: Search },
   { key: "pipeline", label: "Pipeline", icon: ClipboardList },
+  { key: "review", label: "Review", icon: FileCheck2 },
   { key: "profile", label: "Profile", icon: UserRound },
   { key: "resumes", label: "Resumes", icon: FileText },
   { key: "notifications", label: "Notifications", icon: Bell },
@@ -50,6 +53,7 @@ export function App() {
     pipeline: mockPipeline,
     profile: null,
     resumeSources: mockResumeSources,
+    reviewApplications: [],
     notifications: mockNotifications,
     workers: mockWorkers
   });
@@ -136,7 +140,7 @@ export function App() {
             <button className="icon-button" title="WebSocket status" type="button">
               {realtime.state === "connected" ? <Wifi size={18} /> : <WifiOff size={18} />}
             </button>
-            <button className="primary-action" type="button">
+            <button className="primary-action" onClick={() => setView("review")} type="button">
               <CheckCircle2 size={18} />
               Review Queue
             </button>
@@ -146,6 +150,7 @@ export function App() {
         {view === "overview" && <Overview averageScore={averageScore} data={data} />}
         {view === "jobs" && <JobsView rows={data.jobs} />}
         {view === "pipeline" && <PipelineView rows={data.jobs} stages={data.pipeline} />}
+        {view === "review" && <ReviewView applications={data.reviewApplications} onChanged={refreshDashboard} />}
         {view === "profile" && <ProfileView profile={data.profile} />}
         {view === "resumes" && <ResumesView sources={data.resumeSources} />}
         {view === "notifications" && <NotificationsView rows={data.notifications} />}
@@ -161,8 +166,8 @@ function Overview({ averageScore, data }: { averageScore: number; data: Dashboar
       <section className="metric-grid" aria-label="Pipeline summary">
         <Metric icon={BriefcaseBusiness} label="Tracked Jobs" value={`${data.jobs.length}`} note="loaded jobs" />
         <Metric icon={Gauge} label="Avg Match" value={`${averageScore}%`} note="parsed jobs" />
-        <Metric icon={CheckCircle2} label="Ready" value="4" note="needs review" />
-        <Metric icon={Bell} label="Notifications" value="14" note="sent this week" />
+        <Metric icon={CheckCircle2} label="Ready" value={`${data.reviewApplications.length}`} note="needs review" />
+        <Metric icon={Bell} label="Notifications" value={`${data.notifications.length}`} note="recent deliveries" />
       </section>
 
       <section className="split-layout">
@@ -222,6 +227,166 @@ function PipelineView({ rows, stages }: { rows: Job[]; stages: typeof mockPipeli
       ))}
     </div>
   );
+}
+
+function ReviewView({ applications, onChanged }: { applications: ReviewApplication[]; onChanged: () => void }) {
+  const [selectedID, setSelectedID] = useState<number | null>(applications[0]?.applicationId ?? null);
+  const [automationBusy, setAutomationBusy] = useState(false);
+  const selected = applications.find((application) => application.applicationId === selectedID) ?? applications[0];
+
+  useEffect(() => {
+    if (!selected && applications[0]) {
+      setSelectedID(applications[0].applicationId);
+    }
+  }, [applications, selected]);
+
+  if (applications.length === 0) {
+    return (
+      <section className="panel">
+        <PanelHeader title="Review Queue" icon={FileCheck2} />
+        <span className="empty-state">No generated application materials are waiting for review.</span>
+      </section>
+    );
+  }
+
+  const automationReady = selected ? canApproveAutomation(selected) : false;
+  const approveAutomation = async () => {
+    if (!selected) return;
+    setAutomationBusy(true);
+    try {
+      await approveApplicationForAutomation(selected.applicationId);
+      onChanged();
+    } finally {
+      setAutomationBusy(false);
+    }
+  };
+
+  return (
+    <div className="review-layout">
+      <section className="panel review-list">
+        <PanelHeader title="Review Queue" icon={FileCheck2} />
+        {applications.map((application) => (
+          <button
+            className={application.applicationId === selected?.applicationId ? "review-item active" : "review-item"}
+            key={application.applicationId}
+            onClick={() => setSelectedID(application.applicationId)}
+            type="button"
+          >
+            <strong>{application.jobTitle}</strong>
+            <span>{application.company} · {application.matchScore}%</span>
+            <StatusPill status={application.applicationStatus} />
+          </button>
+        ))}
+      </section>
+
+      {selected && (
+        <section className="panel review-detail">
+          <PanelHeader title={`${selected.jobTitle} at ${selected.company}`} icon={ClipboardList} />
+          <div className="review-summary">
+            <div>
+              <span className="field-label">Location</span>
+              <strong>{selected.location || "Not listed"}</strong>
+            </div>
+            <div>
+              <span className="field-label">Match</span>
+              <strong>{selected.matchScore}%</strong>
+            </div>
+            <div>
+              <span className="field-label">Updated</span>
+              <strong>{selected.updatedAt}</strong>
+            </div>
+          </div>
+          <div className="handoff-panel">
+            <div>
+              <strong>Automation Handoff</strong>
+              <span>{automationReady ? "Approved materials are ready for assisted filling." : automationBlockReason(selected)}</span>
+            </div>
+            <button className="primary-action" disabled={!automationReady || automationBusy} onClick={approveAutomation} type="button">
+              <PlayCircle size={18} />
+              Approve for Automation
+            </button>
+          </div>
+          <div className="material-stack">
+            {selected.materials.map((material) => (
+              <MaterialReviewCard key={material.id} material={material} onChanged={onChanged} />
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function canApproveAutomation(application: ReviewApplication) {
+  const resume = application.materials.find((material) => material.kind === "resume");
+  if (!resume || resume.status !== "approved") return false;
+  return application.materials.every((material) => material.status === "approved");
+}
+
+function automationBlockReason(application: ReviewApplication) {
+  const resume = application.materials.find((material) => material.kind === "resume");
+  if (!resume) return "A generated resume is required before automation can start.";
+  if (resume.status !== "approved") return "Approve the generated resume before automation can start.";
+  const pending = application.materials.find((material) => material.status !== "approved");
+  if (pending) return `${pending.kind.replaceAll("_", " ")} is ${pending.status.replaceAll("_", " ")}.`;
+  return "Approved materials are ready for assisted filling.";
+}
+
+function MaterialReviewCard({ material, onChanged }: { material: ReviewMaterial; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false);
+
+  const updateStatus = async (status: ReviewMaterialStatus) => {
+    setBusy(true);
+    try {
+      await updateReviewMaterialStatus(material.id, status, statusNote(status));
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <article className="material-card">
+      <div className="material-header">
+        <div>
+          <strong>{material.kind === "cover_letter" ? "Cover Letter" : "Resume"}</strong>
+          <span>{material.path}</span>
+        </div>
+        <StatusPill status={material.status.replaceAll("_", " ")} />
+      </div>
+      <pre className="material-preview">{material.content || "Document content is unavailable."}</pre>
+      <div className="material-actions">
+        <button className="primary-action" disabled={busy} onClick={() => updateStatus("approved")} type="button">
+          <CheckCircle2 size={18} />
+          Approve
+        </button>
+        <button className="secondary-action" disabled={busy} onClick={() => updateStatus("needs_changes")} type="button">
+          Needs Changes
+        </button>
+        <button className="secondary-action" disabled={busy} onClick={() => updateStatus("regeneration_requested")} type="button">
+          Regenerate
+        </button>
+        <button className="secondary-action danger" disabled={busy} onClick={() => updateStatus("rejected")} type="button">
+          Reject
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function statusNote(status: ReviewMaterialStatus) {
+  switch (status) {
+    case "approved":
+      return "Approved for application use.";
+    case "needs_changes":
+      return "Reviewer requested changes.";
+    case "regeneration_requested":
+      return "Reviewer requested regeneration.";
+    case "rejected":
+      return "Rejected by reviewer.";
+    default:
+      return "";
+  }
 }
 
 function ProfileView({ profile }: { profile: unknown }) {

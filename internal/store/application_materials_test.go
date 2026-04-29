@@ -94,4 +94,45 @@ func TestApplicationReadyContextAndMaterials(t *testing.T) {
 	if materialID == 0 {
 		t.Fatal("materialID = 0")
 	}
+
+	material, err := st.UpdateApplicationMaterialStatus(ctx, UpdateApplicationMaterialStatusParams{
+		ID:     materialID,
+		Status: "approved",
+		Notes:  "Approved for application use.",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if material.Status != "approved" {
+		t.Fatalf("material.Status = %q, want approved", material.Status)
+	}
+
+	handoff, err := st.ApproveApplicationForAutomation(ctx, app.ApplicationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if handoff.AutomationRun.ID == 0 {
+		t.Fatal("automation run id = 0")
+	}
+	if handoff.Packet.Materials.Resume.ID != materialID {
+		t.Fatalf("packet resume material = %d, want %d", handoff.Packet.Materials.Resume.ID, materialID)
+	}
+
+	started, err := st.StartAutomationRun(ctx, handoff.AutomationRun.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if started.Status != "started" {
+		t.Fatalf("started.Status = %q, want started", started.Status)
+	}
+	if err := st.AddAutomationLog(ctx, AutomationLogParams{RunID: started.ID, Message: "loaded packet"}); err != nil {
+		t.Fatal(err)
+	}
+	review, err := st.MarkAutomationReviewRequired(ctx, started.ID, "https://example.test/apply")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if review.Status != "review_required" {
+		t.Fatalf("review.Status = %q, want review_required", review.Status)
+	}
 }

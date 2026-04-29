@@ -412,6 +412,56 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_application_materials_unique_draft
 	WHERE source_event_id IS NOT NULL AND source_event_id != '';
 `,
 	},
+	{
+		Version: 9,
+		Name:    "create_automation_handoff_schema",
+		SQL: `
+ALTER TABLE applications ADD COLUMN selected_resume_material_id INTEGER;
+ALTER TABLE applications ADD COLUMN selected_cover_letter_material_id INTEGER;
+
+CREATE TABLE IF NOT EXISTS automation_runs (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	application_id INTEGER NOT NULL,
+	job_id INTEGER NOT NULL,
+	candidate_profile_id INTEGER NOT NULL,
+	status TEXT NOT NULL DEFAULT 'requested',
+	resume_material_id INTEGER NOT NULL,
+	cover_letter_material_id INTEGER,
+	final_url TEXT,
+	error TEXT,
+	requested_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	started_at TEXT,
+	review_required_at TEXT,
+	finished_at TEXT,
+	updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	FOREIGN KEY(application_id) REFERENCES applications(id) ON DELETE CASCADE,
+	FOREIGN KEY(job_id) REFERENCES jobs(id) ON DELETE CASCADE,
+	FOREIGN KEY(candidate_profile_id) REFERENCES candidate_profiles(id) ON DELETE CASCADE,
+	FOREIGN KEY(resume_material_id) REFERENCES application_materials(id) ON DELETE RESTRICT,
+	FOREIGN KEY(cover_letter_material_id) REFERENCES application_materials(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_automation_runs_application ON automation_runs(application_id);
+CREATE INDEX IF NOT EXISTS idx_automation_runs_status ON automation_runs(status);
+`,
+	},
+	{
+		Version: 10,
+		Name:    "create_automation_log_schema",
+		SQL: `
+CREATE TABLE IF NOT EXISTS automation_logs (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	automation_run_id INTEGER NOT NULL,
+	level TEXT NOT NULL DEFAULT 'info',
+	message TEXT NOT NULL,
+	details_json TEXT NOT NULL DEFAULT '{}',
+	created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	FOREIGN KEY(automation_run_id) REFERENCES automation_runs(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_automation_logs_run ON automation_logs(automation_run_id);
+`,
+	},
 }
 
 func Migrate(ctx context.Context, db *sql.DB) error {

@@ -10,23 +10,33 @@ import (
 )
 
 const (
-	SubjectJobsDiscovered                = "jobs.discovered"
-	SubjectJobsSaved                     = "jobs.saved"
-	SubjectJobsDescriptionFetchRequested = "jobs.description.fetch.requested"
-	SubjectJobsDescriptionFetched        = "jobs.description.fetched"
-	SubjectJobsParsed                    = "jobs.parsed"
-	SubjectJobsMatched                   = "jobs.matched"
-	SubjectApplicationsReady             = "applications.ready"
-	SubjectApplicationsMaterialsDrafted  = "applications.materials.drafted"
+	SubjectJobsDiscovered                 = "jobs.discovered"
+	SubjectJobsSaved                      = "jobs.saved"
+	SubjectJobsDescriptionFetchRequested  = "jobs.description.fetch.requested"
+	SubjectJobsDescriptionFetched         = "jobs.description.fetched"
+	SubjectJobsParsed                     = "jobs.parsed"
+	SubjectJobsMatched                    = "jobs.matched"
+	SubjectApplicationsReady              = "applications.ready"
+	SubjectApplicationsMaterialsDrafted   = "applications.materials.drafted"
+	SubjectApplicationsAutomationApproved = "applications.automation.approved"
+	SubjectAutomationRunRequested         = "automation.run.requested"
+	SubjectAutomationRunStarted           = "automation.run.started"
+	SubjectAutomationRunReviewRequired    = "automation.run.review_required"
+	SubjectAutomationRunFailed            = "automation.run.failed"
 
-	EventJobDiscovered                = "JobDiscovered"
-	EventJobSaved                     = "JobSaved"
-	EventJobDescriptionFetchRequested = "JobDescriptionFetchRequested"
-	EventJobDescriptionFetched        = "JobDescriptionFetched"
-	EventJobParsed                    = "JobParsed"
-	EventJobMatched                   = "JobMatched"
-	EventApplicationReady             = "ApplicationReady"
-	EventApplicationMaterialsDrafted  = "ApplicationMaterialsDrafted"
+	EventJobDiscovered                 = "JobDiscovered"
+	EventJobSaved                      = "JobSaved"
+	EventJobDescriptionFetchRequested  = "JobDescriptionFetchRequested"
+	EventJobDescriptionFetched         = "JobDescriptionFetched"
+	EventJobParsed                     = "JobParsed"
+	EventJobMatched                    = "JobMatched"
+	EventApplicationReady              = "ApplicationReady"
+	EventApplicationMaterialsDrafted   = "ApplicationMaterialsDrafted"
+	EventApplicationAutomationApproved = "ApplicationAutomationApproved"
+	EventAutomationRunRequested        = "AutomationRunRequested"
+	EventAutomationRunStarted          = "AutomationRunStarted"
+	EventAutomationRunReviewRequired   = "AutomationRunReviewRequired"
+	EventAutomationRunFailed           = "AutomationRunFailed"
 )
 
 type Envelope[T any] struct {
@@ -132,6 +142,35 @@ type ApplicationMaterialsDraftedPayload struct {
 	CoverLetterDocID   int64     `json:"cover_letter_document_id"`
 	Status             string    `json:"status"`
 	DraftedAt          time.Time `json:"drafted_at"`
+}
+
+type ApplicationAutomationApprovedPayload struct {
+	ApplicationID         int64     `json:"application_id"`
+	JobID                 int64     `json:"job_id"`
+	CandidateProfileID    int64     `json:"candidate_profile_id"`
+	AutomationRunID       int64     `json:"automation_run_id"`
+	ResumeMaterialID      int64     `json:"resume_material_id"`
+	CoverLetterMaterialID *int64    `json:"cover_letter_material_id,omitempty"`
+	ApprovedAt            time.Time `json:"approved_at"`
+}
+
+type AutomationRunRequestedPayload struct {
+	AutomationRunID       int64     `json:"automation_run_id"`
+	ApplicationID         int64     `json:"application_id"`
+	JobID                 int64     `json:"job_id"`
+	CandidateProfileID    int64     `json:"candidate_profile_id"`
+	ResumeMaterialID      int64     `json:"resume_material_id"`
+	CoverLetterMaterialID *int64    `json:"cover_letter_material_id,omitempty"`
+	RequestedAt           time.Time `json:"requested_at"`
+}
+
+type AutomationRunStatusPayload struct {
+	AutomationRunID int64     `json:"automation_run_id"`
+	ApplicationID   int64     `json:"application_id"`
+	JobID           int64     `json:"job_id"`
+	Status          string    `json:"status"`
+	Message         string    `json:"message,omitempty"`
+	OccurredAt      time.Time `json:"occurred_at"`
 }
 
 func NewJobDiscovered(sourceName string, payload JobDiscoveredPayload) Envelope[JobDiscoveredPayload] {
@@ -245,6 +284,51 @@ func NewApplicationMaterialsDrafted(sourceName, correlationID string, payload Ap
 	return Envelope[ApplicationMaterialsDraftedPayload]{
 		EventID:        StableID("event", EventApplicationMaterialsDrafted, sourceName, idempotencyKey, now.Format(time.RFC3339Nano)),
 		EventType:      EventApplicationMaterialsDrafted,
+		EventVersion:   1,
+		OccurredAt:     now,
+		Source:         sourceName,
+		CorrelationID:  correlationID,
+		IdempotencyKey: idempotencyKey,
+		Payload:        payload,
+	}
+}
+
+func NewApplicationAutomationApproved(sourceName, correlationID string, payload ApplicationAutomationApprovedPayload) Envelope[ApplicationAutomationApprovedPayload] {
+	now := time.Now().UTC()
+	idempotencyKey := StableID("application-automation-approved", sourceName, fmt.Sprintf("%d", payload.ApplicationID), fmt.Sprintf("%d", payload.AutomationRunID))
+	return Envelope[ApplicationAutomationApprovedPayload]{
+		EventID:        StableID("event", EventApplicationAutomationApproved, sourceName, idempotencyKey, now.Format(time.RFC3339Nano)),
+		EventType:      EventApplicationAutomationApproved,
+		EventVersion:   1,
+		OccurredAt:     now,
+		Source:         sourceName,
+		CorrelationID:  correlationID,
+		IdempotencyKey: idempotencyKey,
+		Payload:        payload,
+	}
+}
+
+func NewAutomationRunRequested(sourceName, correlationID string, payload AutomationRunRequestedPayload) Envelope[AutomationRunRequestedPayload] {
+	now := time.Now().UTC()
+	idempotencyKey := StableID("automation-run-requested", sourceName, fmt.Sprintf("%d", payload.AutomationRunID))
+	return Envelope[AutomationRunRequestedPayload]{
+		EventID:        StableID("event", EventAutomationRunRequested, sourceName, idempotencyKey, now.Format(time.RFC3339Nano)),
+		EventType:      EventAutomationRunRequested,
+		EventVersion:   1,
+		OccurredAt:     now,
+		Source:         sourceName,
+		CorrelationID:  correlationID,
+		IdempotencyKey: idempotencyKey,
+		Payload:        payload,
+	}
+}
+
+func NewAutomationRunStatus(eventType, sourceName, correlationID string, payload AutomationRunStatusPayload) Envelope[AutomationRunStatusPayload] {
+	now := time.Now().UTC()
+	idempotencyKey := StableID("automation-run-status", eventType, sourceName, fmt.Sprintf("%d", payload.AutomationRunID), payload.Status)
+	return Envelope[AutomationRunStatusPayload]{
+		EventID:        StableID("event", eventType, sourceName, idempotencyKey, now.Format(time.RFC3339Nano)),
+		EventType:      eventType,
 		EventVersion:   1,
 		OccurredAt:     now,
 		Source:         sourceName,
