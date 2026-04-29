@@ -54,8 +54,53 @@ Frontend:
 Interfaces:
 
 - REST or JSON HTTP API between React and the Go backend.
+- WebSocket API from the Go backend to React/TypeScript clients for real-time updates.
+- The same WebSocket API must support browser clients and an Electron desktop shell.
 - JSON event payloads on JetStream.
 - SQLite repositories hidden behind Go interfaces so database access stays testable and replaceable.
+
+### Real-Time Client Updates
+
+The Go API service must provide WebSocket updates for user-facing state changes. The React/TypeScript web interface should connect directly to this WebSocket endpoint, and an Electron app should be able to connect to the same endpoint without a separate protocol.
+
+Primary WebSocket endpoint:
+
+```text
+GET /ws
+```
+
+Responsibilities:
+
+- Push job lifecycle updates, application status changes, notification delivery results, source run updates, automation events, and interview updates.
+- Send an initial connection acknowledgement with protocol version and server time.
+- Support browser and Electron clients using the same JSON message format.
+- Allow clients to subscribe to specific update categories.
+- Reconnect cleanly after network interruption using client-side retry and optional last-seen event IDs.
+- Never expose raw JetStream directly to the frontend.
+
+Suggested client-to-server message:
+
+```json
+{
+  "type": "subscribe",
+  "topics": ["jobs", "applications", "notifications", "source_runs"]
+}
+```
+
+Suggested server-to-client message:
+
+```json
+{
+  "type": "event",
+  "topic": "jobs",
+  "event_id": "uuid",
+  "event_type": "JobMatched",
+  "occurred_at": "2026-04-28T12:00:00Z",
+  "payload": {}
+}
+```
+
+The API service should bridge internal state changes to WebSocket clients by consuming application events from JetStream or by publishing update notifications after successful state mutations. The WebSocket layer should send view-oriented messages, not database internals.
 
 ## Discrete Components
 
@@ -69,6 +114,7 @@ Responsibilities:
 
 - Render the job dashboard, job detail views, application queue, resume review screens, profile settings, notifications, and interview tracker.
 - Call the Go API over JSON HTTP.
+- Connect to the Go API WebSocket endpoint for real-time updates.
 - Provide human approval flows for generated resumes, cover letters, application answers, and final submissions.
 - Show source run status, event processing state, notification results, and automation failures.
 
@@ -77,6 +123,7 @@ Owns:
 - UI routes.
 - Frontend state management.
 - TypeScript API client.
+- TypeScript WebSocket client with reconnect and resubscribe behavior.
 - Form validation and review workflows.
 
 Does not own:
@@ -93,6 +140,8 @@ Responsibilities:
 
 - Serve the React application in production or expose an API for a separately hosted frontend.
 - Provide JSON endpoints for jobs, applications, candidate profile, documents, interviews, notifications, and settings.
+- Provide the `/ws` WebSocket endpoint for browser and Electron clients.
+- Broadcast real-time updates derived from application events and user-triggered state changes.
 - Enforce validation and user approval gates.
 - Read and write application state through repository interfaces.
 - Publish user-triggered events to JetStream when needed.
@@ -100,6 +149,7 @@ Responsibilities:
 Owns:
 
 - HTTP routing.
+- WebSocket connection management, topic subscriptions, ping/pong heartbeats, and backpressure handling.
 - Request validation.
 - Application-facing read models.
 - User actions such as save job, approve resume, mark applied, schedule interview, and retry automation.
