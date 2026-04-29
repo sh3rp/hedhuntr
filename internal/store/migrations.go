@@ -339,6 +339,50 @@ CREATE INDEX IF NOT EXISTS idx_candidate_certifications_profile ON candidate_cer
 CREATE INDEX IF NOT EXISTS idx_candidate_links_profile ON candidate_links(candidate_profile_id);
 `,
 	},
+	{
+		Version: 7,
+		Name:    "create_resume_document_schema",
+		SQL: `
+CREATE TABLE IF NOT EXISTS documents (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	kind TEXT NOT NULL,
+	format TEXT NOT NULL,
+	path TEXT NOT NULL,
+	sha256 TEXT NOT NULL,
+	size_bytes INTEGER NOT NULL,
+	created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE TABLE IF NOT EXISTS resume_sources (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	candidate_profile_id INTEGER,
+	name TEXT NOT NULL,
+	format TEXT NOT NULL,
+	document_id INTEGER NOT NULL,
+	created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	FOREIGN KEY(candidate_profile_id) REFERENCES candidate_profiles(id) ON DELETE SET NULL,
+	FOREIGN KEY(document_id) REFERENCES documents(id) ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS resume_versions (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	resume_source_id INTEGER NOT NULL,
+	job_id INTEGER,
+	document_id INTEGER NOT NULL,
+	status TEXT NOT NULL DEFAULT 'draft',
+	notes TEXT,
+	created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	FOREIGN KEY(resume_source_id) REFERENCES resume_sources(id) ON DELETE CASCADE,
+	FOREIGN KEY(job_id) REFERENCES jobs(id) ON DELETE SET NULL,
+	FOREIGN KEY(document_id) REFERENCES documents(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_documents_kind ON documents(kind);
+CREATE INDEX IF NOT EXISTS idx_resume_sources_candidate ON resume_sources(candidate_profile_id);
+CREATE INDEX IF NOT EXISTS idx_resume_versions_source ON resume_versions(resume_source_id);
+`,
+	},
 }
 
 func Migrate(ctx context.Context, db *sql.DB) error {

@@ -116,6 +116,14 @@ The Profile Import command currently supports:
 - Persisting work history, projects, education, certifications, and links.
 - Printing the stored profile after import for verification.
 
+The Resume command currently supports:
+
+- Importing a base resume Markdown file.
+- Storing the resume artifact under a local document directory.
+- Recording document metadata, checksum, and size in SQLite.
+- Creating resume source records.
+- Listing stored resume sources.
+
 ## Repository Layout
 
 ```text
@@ -127,6 +135,7 @@ cmd/parser-worker/                Parser / enrichment worker command
 cmd/matching-worker/              Matching worker command
 cmd/notification-worker/          Notification worker command
 cmd/profile/                      Candidate profile import command
+cmd/resume/                       Resume source import/list command
 configs/candidate-profile.example.json
 configs/source-producer.example.json
 configs/persistence-dispatcher.example.json
@@ -135,7 +144,9 @@ configs/description-fetcher.example.json
 configs/parser-worker.example.json
 configs/matching-worker.example.json
 configs/notification-worker.example.json
+examples/resume.example.md
 internal/config/                 Configuration loading
+internal/document/               Local document storage helpers
 internal/events/                 Event envelopes and payloads
 internal/broker/                 JetStream setup helpers
 internal/descriptionfetcher/      Description fetcher orchestration and text extraction
@@ -339,6 +350,26 @@ go run ./cmd/profile -db hedhuntr.db -profile configs/candidate-profile.example.
 
 The matching worker uses the first stored candidate profile when `candidate_profile_id` is `0` in `configs/matching-worker.example.json`.
 
+## Importing a Resume Source
+
+Import the example base resume into local document storage and SQLite:
+
+```bash
+go run ./cmd/resume import -db hedhuntr.db -documents data/documents -file examples/resume.example.md -name "Base Resume"
+```
+
+Attach the resume source to a candidate profile:
+
+```bash
+go run ./cmd/resume import -db hedhuntr.db -documents data/documents -file examples/resume.example.md -name "Base Resume" -candidate-profile-id 1
+```
+
+List stored resume sources:
+
+```bash
+go run ./cmd/resume list -db hedhuntr.db
+```
+
 ## Event Output
 
 The source producer publishes `JobDiscovered` events to:
@@ -373,7 +404,6 @@ Events use the shared envelope:
 
 ## Next Implementation Steps
 
-- Add resume source storage and document generation.
 - Add resume tuning worker for `applications.ready`.
 - Add candidate profile API endpoints.
 - Add the React/TypeScript dashboard shell.
