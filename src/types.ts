@@ -6,6 +6,7 @@ export type ViewKey =
   | "pipeline"
   | "review"
   | "automation"
+  | "interviews"
   | "profile"
   | "resumes"
   | "notifications"
@@ -208,6 +209,48 @@ export type AutomationHandoff = {
   applicationId: number;
   automationRun: AutomationRun;
   packet: unknown;
+};
+
+export type InterviewTask = {
+  id: number;
+  interviewId: number;
+  title: string;
+  status: "open" | "done" | string;
+  dueAt?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Interview = {
+  id: number;
+  applicationId: number;
+  jobId: number;
+  candidateProfileId: number;
+  jobTitle: string;
+  company: string;
+  stage: string;
+  status: "scheduled" | "completed" | "cancelled" | "no_show" | "offer" | "rejected" | string;
+  scheduledAt?: string;
+  durationMinutes?: number;
+  location?: string;
+  contacts: string[];
+  notes?: string;
+  outcome?: string;
+  tasks: InterviewTask[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateInterviewRequest = {
+  applicationId: number;
+  stage: string;
+  status?: string;
+  scheduledAt?: string;
+  durationMinutes?: number;
+  location?: string;
+  contacts: string[];
+  notes?: string;
 };
 
 export type RealtimeEvent = {

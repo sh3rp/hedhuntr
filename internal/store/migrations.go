@@ -462,6 +462,49 @@ CREATE TABLE IF NOT EXISTS automation_logs (
 CREATE INDEX IF NOT EXISTS idx_automation_logs_run ON automation_logs(automation_run_id);
 `,
 	},
+	{
+		Version: 11,
+		Name:    "create_interview_tracking_schema",
+		SQL: `
+CREATE TABLE IF NOT EXISTS interviews (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	application_id INTEGER NOT NULL,
+	job_id INTEGER NOT NULL,
+	candidate_profile_id INTEGER NOT NULL,
+	stage TEXT NOT NULL,
+	status TEXT NOT NULL DEFAULT 'scheduled',
+	scheduled_at TEXT,
+	duration_minutes INTEGER,
+	location TEXT,
+	contacts_json TEXT NOT NULL DEFAULT '[]',
+	notes TEXT,
+	outcome TEXT,
+	created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	FOREIGN KEY(application_id) REFERENCES applications(id) ON DELETE CASCADE,
+	FOREIGN KEY(job_id) REFERENCES jobs(id) ON DELETE CASCADE,
+	FOREIGN KEY(candidate_profile_id) REFERENCES candidate_profiles(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS interview_tasks (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	interview_id INTEGER NOT NULL,
+	title TEXT NOT NULL,
+	status TEXT NOT NULL DEFAULT 'open',
+	due_at TEXT,
+	notes TEXT,
+	created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	FOREIGN KEY(interview_id) REFERENCES interviews(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_interviews_application ON interviews(application_id);
+CREATE INDEX IF NOT EXISTS idx_interviews_status ON interviews(status);
+CREATE INDEX IF NOT EXISTS idx_interviews_scheduled_at ON interviews(scheduled_at);
+CREATE INDEX IF NOT EXISTS idx_interview_tasks_interview ON interview_tasks(interview_id);
+CREATE INDEX IF NOT EXISTS idx_interview_tasks_status ON interview_tasks(status);
+`,
+	},
 }
 
 func Migrate(ctx context.Context, db *sql.DB) error {

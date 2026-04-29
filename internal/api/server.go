@@ -83,6 +83,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/automation/runs/{id}/mark-submitted", s.handleAutomationMarkSubmitted)
 	mux.HandleFunc("POST /api/automation/runs/{id}/fail", s.handleAutomationFail)
 	mux.HandleFunc("POST /api/automation/runs/{id}/retry", s.handleAutomationRetry)
+	mux.HandleFunc("GET /api/interviews", s.handleInterviews)
+	mux.HandleFunc("POST /api/interviews", s.handleCreateInterview)
+	mux.HandleFunc("POST /api/interviews/{id}/status", s.handleUpdateInterview)
+	mux.HandleFunc("POST /api/interviews/{id}/tasks", s.handleCreateInterviewTask)
 	mux.HandleFunc("GET /api/notifications", s.handleNotifications)
 	mux.HandleFunc("GET /api/workers", s.handleWorkers)
 	mux.HandleFunc("GET /ws", s.handleWebSocket)
@@ -367,6 +371,93 @@ func (s *Server) broadcastAutomationRun(eventType string, run store.AutomationRu
 			"automation_run_id": run.ID,
 			"application_id":    run.ApplicationID,
 			"status":            run.Status,
+		},
+	})
+}
+
+func (s *Server) handleInterviews(w http.ResponseWriter, r *http.Request) {
+	interviews, err := s.store.ListInterviews(r.Context())
+	writeResult(w, interviews, err)
+}
+
+func (s *Server) handleCreateInterview(w http.ResponseWriter, r *http.Request) {
+	var request store.CreateInterviewParams
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+		return
+	}
+	interview, err := s.store.CreateInterview(r.Context(), request)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	s.broadcastInterview("InterviewCreated", interview)
+	writeJSON(w, http.StatusCreated, interview)
+}
+
+func (s *Server) handleUpdateInterview(w http.ResponseWriter, r *http.Request) {
+	id, err := parsePathID(r, "id")
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	var request store.UpdateInterviewParams
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+		return
+	}
+	interview, err := s.store.UpdateInterview(r.Context(), id, request)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	s.broadcastInterview("InterviewUpdated", interview)
+	writeJSON(w, http.StatusOK, interview)
+}
+
+func (s *Server) handleCreateInterviewTask(w http.ResponseWriter, r *http.Request) {
+	id, err := parsePathID(r, "id")
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	var request store.CreateInterviewTaskParams
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+		return
+	}
+	request.InterviewID = id
+	task, err := s.store.CreateInterviewTask(r.Context(), request)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	s.hub.Broadcast(WSMessage{
+		Type:       "event",
+		Topic:      "interviews",
+		EventType:  "InterviewTaskCreated",
+		OccurredAt: time.Now().UTC().Format(time.RFC3339Nano),
+		Payload: map[string]any{
+			"interview_id": task.InterviewID,
+			"task_id":      task.ID,
+			"title":        task.Title,
+		},
+	})
+	writeJSON(w, http.StatusCreated, task)
+}
+
+func (s *Server) broadcastInterview(eventType string, interview store.Interview) {
+	s.hub.Broadcast(WSMessage{
+		Type:       "event",
+		Topic:      "interviews",
+		EventType:  eventType,
+		OccurredAt: time.Now().UTC().Format(time.RFC3339Nano),
+		Payload: map[string]any{
+			"interview_id":   interview.ID,
+			"application_id": interview.ApplicationID,
+			"job_id":         interview.JobID,
+			"stage":          interview.Stage,
+			"status":         interview.Status,
 		},
 	})
 }

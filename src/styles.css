@@ -800,6 +800,68 @@ button:disabled {
   background: #fbfcfa;
 }
 
+.interview-list,
+.interview-card,
+.interview-tasks {
+  display: grid;
+  gap: 12px;
+}
+
+.interview-card {
+  padding: 14px;
+  border: 1px solid #e1e7e1;
+  border-radius: 8px;
+  background: #fbfcfa;
+}
+
+.interview-card-header,
+.task-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.interview-card-header strong,
+.interview-card-header span {
+  display: block;
+}
+
+.interview-card-header span,
+.interview-meta {
+  color: #68756f;
+  text-transform: capitalize;
+}
+
+.interview-card-header select {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid #ccd6ce;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.interview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.interview-card p {
+  margin: 0;
+  color: #31413d;
+}
+
+.task-entry input {
+  min-height: 38px;
+  width: 100%;
+  min-width: 0;
+  padding: 0 10px;
+  border: 1px solid #ccd6ce;
+  border-radius: 6px;
+}
+
 .checkbox-field {
   display: flex;
   align-items: center;
@@ -945,6 +1007,12 @@ button:disabled {
   }
 
   .automation-header {
+    flex-direction: column;
+  }
+
+  .interview-card-header,
+  .task-entry {
+    align-items: stretch;
     flex-direction: column;
   }
 

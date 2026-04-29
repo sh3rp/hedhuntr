@@ -158,6 +158,7 @@ Responsibilities:
 - Record material review decisions such as approved, rejected, needs changes, and regeneration requested.
 - Create automation handoff packets only after required materials are approved.
 - Expose automation run state, logs, and manual status controls.
+- Track interviews, outcomes, and follow-up tasks.
 - Publish durable automation handoff events to JetStream after user approval.
 - Provide the `/ws` WebSocket endpoint for browser and Electron clients.
 - Broadcast real-time updates derived from application events and user-triggered state changes.

@@ -3,6 +3,7 @@ import {
   AlertCircle,
   Bell,
   BriefcaseBusiness,
+  CalendarClock,
   CheckCircle2,
   ClipboardList,
   Database,
@@ -22,10 +23,10 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { approveApplicationForAutomation, failAutomationRun, loadDashboardData, markAutomationSubmitted, retryAutomationRun, saveCandidateProfile, updateReviewMaterialStatus, type DashboardData } from "./api/client";
+import { approveApplicationForAutomation, createInterview, createInterviewTask, failAutomationRun, loadDashboardData, markAutomationSubmitted, retryAutomationRun, saveCandidateProfile, updateInterviewStatus, updateReviewMaterialStatus, type DashboardData } from "./api/client";
 import { jobs as mockJobs, notifications as mockNotifications, pipeline as mockPipeline, resumeSources as mockResumeSources, workers as mockWorkers } from "./data/mockData";
 import { useRealtime } from "./hooks/useRealtime";
-import type { AutomationRunView, CandidateProfile, Certification, Education, Job, JobStatus, NavItem, ProfileLink, ProfileQualityReport, Project, RealtimeEvent, ReviewApplication, ReviewMaterial, ReviewMaterialStatus, ViewKey, WorkHistory } from "./types";
+import type { AutomationRunView, CandidateProfile, Certification, CreateInterviewRequest, Education, Interview, Job, JobStatus, NavItem, ProfileLink, ProfileQualityReport, Project, RealtimeEvent, ReviewApplication, ReviewMaterial, ReviewMaterialStatus, ViewKey, WorkHistory } from "./types";
 
 const navItems: NavItem[] = [
   { key: "overview", label: "Overview", icon: LayoutDashboard },
@@ -33,6 +34,7 @@ const navItems: NavItem[] = [
   { key: "pipeline", label: "Pipeline", icon: ClipboardList },
   { key: "review", label: "Review", icon: FileCheck2 },
   { key: "automation", label: "Automation", icon: PlayCircle },
+  { key: "interviews", label: "Interviews", icon: CalendarClock },
   { key: "profile", label: "Profile", icon: UserRound },
   { key: "resumes", label: "Resumes", icon: FileText },
   { key: "notifications", label: "Notifications", icon: Bell },
@@ -60,6 +62,7 @@ export function App() {
     resumeSources: mockResumeSources,
     reviewApplications: [],
     automationRuns: [],
+    interviews: [],
     notifications: mockNotifications,
     workers: mockWorkers
   });
@@ -158,6 +161,7 @@ export function App() {
         {view === "pipeline" && <PipelineView rows={data.jobs} stages={data.pipeline} />}
         {view === "review" && <ReviewView applications={data.reviewApplications} onChanged={refreshDashboard} />}
         {view === "automation" && <AutomationView runs={data.automationRuns} onChanged={refreshDashboard} />}
+        {view === "interviews" && <InterviewsView applications={data.reviewApplications} interviews={data.interviews} onChanged={refreshDashboard} />}
         {view === "profile" && <ProfileView onChanged={refreshDashboard} profile={data.profile} quality={data.profileQuality} />}
         {view === "resumes" && <ResumesView sources={data.resumeSources} />}
         {view === "notifications" && <NotificationsView rows={data.notifications} />}
@@ -477,6 +481,187 @@ function AutomationView({ runs, onChanged }: { runs: AutomationRunView[]; onChan
           </div>
         </section>
       ))}
+    </div>
+  );
+}
+
+function InterviewsView({ applications, interviews, onChanged }: { applications: ReviewApplication[]; interviews: Interview[]; onChanged: () => void }) {
+  const initialApplicationID = applications[0]?.applicationId ?? 0;
+  const [draft, setDraft] = useState<CreateInterviewRequest>({
+    applicationId: initialApplicationID,
+    stage: "recruiter_screen",
+    status: "scheduled",
+    scheduledAt: "",
+    durationMinutes: 30,
+    location: "",
+    contacts: [],
+    notes: ""
+  });
+  const [contactsText, setContactsText] = useState("");
+  const [taskDrafts, setTaskDrafts] = useState<Record<number, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (draft.applicationId === 0 && initialApplicationID > 0) {
+      setDraft((current) => ({ ...current, applicationId: initialApplicationID }));
+    }
+  }, [draft.applicationId, initialApplicationID]);
+
+  const saveInterview = async () => {
+    setError("");
+    if (draft.applicationId <= 0) {
+      setError("Select an application before creating an interview.");
+      return;
+    }
+    if (!draft.stage.trim()) {
+      setError("Stage is required.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await createInterview({
+        ...draft,
+        contacts: csv(contactsText)
+      });
+      setDraft({
+        applicationId: draft.applicationId,
+        stage: "recruiter_screen",
+        status: "scheduled",
+        scheduledAt: "",
+        durationMinutes: 30,
+        location: "",
+        contacts: [],
+        notes: ""
+      });
+      setContactsText("");
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to create interview.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const changeStatus = async (interview: Interview, status: string) => {
+    await updateInterviewStatus(interview.id, status, interview.outcome ?? "", interview.notes ?? "");
+    onChanged();
+  };
+
+  const addTask = async (interviewID: number) => {
+    const title = taskDrafts[interviewID]?.trim() ?? "";
+    if (!title) return;
+    await createInterviewTask(interviewID, title);
+    setTaskDrafts({ ...taskDrafts, [interviewID]: "" });
+    onChanged();
+  };
+
+  return (
+    <div className="view-stack">
+      <section className="panel">
+        <PanelHeader title="Schedule Interview" icon={CalendarClock} />
+        <div className="profile-form">
+          <label>
+            <span className="field-label">Application</span>
+            <select value={draft.applicationId} onChange={(event) => setDraft({ ...draft, applicationId: Number(event.target.value) })}>
+              <option value={0}>Select application</option>
+              {applications.map((application) => (
+                <option key={application.applicationId} value={application.applicationId}>
+                  {application.jobTitle} at {application.company}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span className="field-label">Stage</span>
+            <select value={draft.stage} onChange={(event) => setDraft({ ...draft, stage: event.target.value })}>
+              <option value="recruiter_screen">Recruiter Screen</option>
+              <option value="hiring_manager">Hiring Manager</option>
+              <option value="technical">Technical</option>
+              <option value="onsite">Onsite</option>
+              <option value="final">Final</option>
+              <option value="offer">Offer</option>
+            </select>
+          </label>
+          <label>
+            <span className="field-label">Scheduled At</span>
+            <input value={draft.scheduledAt ?? ""} onChange={(event) => setDraft({ ...draft, scheduledAt: event.target.value })} placeholder="2026-05-05T15:00:00Z" />
+          </label>
+          <label>
+            <span className="field-label">Duration Minutes</span>
+            <input type="number" value={draft.durationMinutes ?? ""} onChange={(event) => setDraft({ ...draft, durationMinutes: event.target.value === "" ? 0 : Number(event.target.value) })} />
+          </label>
+          <label>
+            <span className="field-label">Location</span>
+            <input value={draft.location ?? ""} onChange={(event) => setDraft({ ...draft, location: event.target.value })} />
+          </label>
+          <label>
+            <span className="field-label">Contacts</span>
+            <input value={contactsText} onChange={(event) => setContactsText(event.target.value)} placeholder="Hiring Manager, Engineering Lead" />
+          </label>
+          <label className="wide-field">
+            <span className="field-label">Notes</span>
+            <textarea value={draft.notes ?? ""} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} />
+          </label>
+        </div>
+        {error ? <div className="validation-summary" role="alert">{error}</div> : null}
+        <div className="material-actions profile-actions">
+          <button className="primary-action" disabled={saving || applications.length === 0} onClick={saveInterview} type="button">
+            <CheckCircle2 size={18} />
+            Create Interview
+          </button>
+        </div>
+      </section>
+
+      <section className="panel">
+        <PanelHeader title="Interview Pipeline" icon={CalendarClock} />
+        <div className="interview-list">
+          {interviews.length === 0 ? <span className="empty-state">No interviews tracked yet.</span> : null}
+          {interviews.map((interview) => (
+            <article className="interview-card" key={interview.id}>
+              <div className="interview-card-header">
+                <div>
+                  <strong>{interview.jobTitle} at {interview.company}</strong>
+                  <span>{interview.stage.replaceAll("_", " ")} · {interview.status}</span>
+                </div>
+                <select value={interview.status} onChange={(event) => changeStatus(interview, event.target.value)}>
+                  <option value="scheduled">Scheduled</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                  <option value="no_show">No Show</option>
+                  <option value="offer">Offer</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </div>
+              <div className="interview-meta">
+                <span>{interview.scheduledAt || "Unscheduled"}</span>
+                <span>{interview.durationMinutes ? `${interview.durationMinutes} min` : "Duration unset"}</span>
+                <span>{interview.location || "Location unset"}</span>
+              </div>
+              {interview.contacts.length > 0 ? (
+                <div className="skill-row">
+                  {interview.contacts.map((contact) => (
+                    <span className="skill-chip" key={contact}>{contact}</span>
+                  ))}
+                </div>
+              ) : null}
+              {interview.notes ? <p>{interview.notes}</p> : null}
+              <div className="interview-tasks">
+                {interview.tasks.map((task) => (
+                  <div className="event-row" key={task.id}>
+                    <strong>{task.title}</strong>
+                    <span>{task.dueAt || task.status}</span>
+                  </div>
+                ))}
+                <div className="task-entry">
+                  <input value={taskDrafts[interview.id] ?? ""} onChange={(event) => setTaskDrafts({ ...taskDrafts, [interview.id]: event.target.value })} placeholder="Add follow-up task" />
+                  <button className="secondary-action" onClick={() => addTask(interview.id)} type="button">Add Task</button>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

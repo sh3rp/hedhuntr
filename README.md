@@ -154,6 +154,7 @@ The API Service currently supports:
 - Updating generated material status for approve, reject, needs-changes, and regeneration-requested actions.
 - Creating automation handoff packets from approved application materials.
 - Exposing automation run state, logs, and run control actions.
+- Tracking interviews, interview status changes, and follow-up tasks.
 - Publishing durable automation handoff events to JetStream.
 - Providing WebSocket subscriptions for React and Electron clients.
 - Subscribing to NATS workflow events and broadcasting live dashboard updates over WebSockets.
@@ -171,6 +172,7 @@ The React/Electron UI currently supports:
 - Approving reviewed materials for an assisted automation handoff.
 - Viewing automation runs, logs, final URLs, and review-required state.
 - Marking automation runs submitted, failed, or retrying them with durable worker events.
+- Scheduling interviews, updating interview status, and adding follow-up tasks.
 - Running as a browser UI through Vite.
 - Running as a desktop shell through Electron.
 
@@ -508,6 +510,10 @@ GET /api/automation/runs
 POST /api/automation/runs/{id}/mark-submitted
 POST /api/automation/runs/{id}/fail
 POST /api/automation/runs/{id}/retry
+GET /api/interviews
+POST /api/interviews
+POST /api/interviews/{id}/status
+POST /api/interviews/{id}/tasks
 GET /api/notifications
 GET /api/workers
 GET /ws
@@ -600,4 +606,4 @@ Events use the shared envelope:
 ## Next Implementation Steps
 
 - Add ATS-specific automation adapters for supported application systems.
-- Add interview tracking.
+- Add generated resume diff/review improvements.

@@ -379,6 +379,72 @@ func TestProfileQualityEndpoint(t *testing.T) {
 	}
 }
 
+func TestInterviewEndpoints(t *testing.T) {
+	server, httpServer := newTestServer(t)
+	appID := seedInterviewApplication(t, server)
+
+	createBody := bytes.NewBufferString(`{
+		"applicationId":` + strconvFormat(appID) + `,
+		"stage":"technical",
+		"scheduledAt":"2026-05-05T15:00:00Z",
+		"durationMinutes":60,
+		"location":"Zoom",
+		"contacts":["Hiring Manager"],
+		"notes":"Prepare systems examples."
+	}`)
+	resp, err := http.Post(httpServer.URL+"/api/interviews", "application/json", createBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create status = %d, want 201", resp.StatusCode)
+	}
+	var interview store.Interview
+	if err := json.NewDecoder(resp.Body).Decode(&interview); err != nil {
+		t.Fatal(err)
+	}
+	if interview.ID == 0 || interview.Stage != "technical" || interview.Status != "scheduled" {
+		t.Fatalf("interview = %#v", interview)
+	}
+
+	taskBody := bytes.NewBufferString(`{"title":"Send thank-you note","dueAt":"2026-05-06T15:00:00Z"}`)
+	resp, err = http.Post(httpServer.URL+"/api/interviews/"+strconvFormat(interview.ID)+"/tasks", "application/json", taskBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("task status = %d, want 201", resp.StatusCode)
+	}
+
+	statusBody := bytes.NewBufferString(`{"status":"completed","outcome":"advance","notes":"Went well."}`)
+	resp, err = http.Post(httpServer.URL+"/api/interviews/"+strconvFormat(interview.ID)+"/status", "application/json", statusBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("update status = %d, want 200", resp.StatusCode)
+	}
+
+	resp, err = http.Get(httpServer.URL + "/api/interviews")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("list status = %d, want 200", resp.StatusCode)
+	}
+	var interviews []store.Interview
+	if err := json.NewDecoder(resp.Body).Decode(&interviews); err != nil {
+		t.Fatal(err)
+	}
+	if len(interviews) != 1 || len(interviews[0].Tasks) != 1 || interviews[0].Status != "completed" {
+		t.Fatalf("interviews = %#v", interviews)
+	}
+}
+
 func seedReviewMaterial(t *testing.T, server *Server) int64 {
 	t.Helper()
 	ctx := context.Background()
@@ -444,6 +510,47 @@ func seedReviewMaterial(t *testing.T, server *Server) int64 {
 		t.Fatal(err)
 	}
 	return materialID
+}
+
+func seedInterviewApplication(t *testing.T, server *Server) int64 {
+	t.Helper()
+	ctx := context.Background()
+	profileID, err := server.store.UpsertFullCandidateProfile(ctx, profile.Profile{
+		Name:            "Alex Example",
+		Skills:          []string{"Go", "SQLite"},
+		PreferredTitles: []string{"Backend Engineer"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := server.store.SaveDiscoveredJob(ctx, events.SubjectJobsDiscovered, events.Envelope[events.JobDiscoveredPayload]{
+		EventID:        "interview-api-event-1",
+		EventType:      events.EventJobDiscovered,
+		EventVersion:   1,
+		OccurredAt:     time.Now().UTC(),
+		Source:         "test",
+		CorrelationID:  "interview-api-corr",
+		IdempotencyKey: "test:interview-api-job",
+		Payload: events.JobDiscoveredPayload{
+			Source:       "test",
+			ExternalID:   "interview-api-job",
+			Title:        "Backend Engineer",
+			Company:      "Acme",
+			SourceURL:    "https://example.test/jobs/interview-api",
+			DiscoveredAt: time.Now().UTC(),
+		},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := server.store.MarkApplicationReady(ctx, result.JobID, profileID, 92); err != nil {
+		t.Fatal(err)
+	}
+	app, err := server.store.GetApplicationReadyContext(ctx, result.JobID, profileID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return app.ApplicationID
 }
 
 func strconvFormat(value int64) string {
