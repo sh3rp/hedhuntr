@@ -255,6 +255,90 @@ CREATE INDEX IF NOT EXISTS idx_notification_deliveries_event_id ON notification_
 CREATE INDEX IF NOT EXISTS idx_notification_deliveries_status ON notification_deliveries(status);
 `,
 	},
+	{
+		Version: 6,
+		Name:    "create_candidate_profile_detail_schema",
+		SQL: `
+CREATE TABLE IF NOT EXISTS candidate_work_history (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	candidate_profile_id INTEGER NOT NULL,
+	company TEXT NOT NULL,
+	title TEXT NOT NULL,
+	location TEXT,
+	start_date TEXT,
+	end_date TEXT,
+	current INTEGER NOT NULL DEFAULT 0,
+	summary TEXT,
+	highlights_json TEXT NOT NULL DEFAULT '[]',
+	technologies_json TEXT NOT NULL DEFAULT '[]',
+	sort_order INTEGER NOT NULL DEFAULT 0,
+	created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	FOREIGN KEY(candidate_profile_id) REFERENCES candidate_profiles(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS candidate_projects (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	candidate_profile_id INTEGER NOT NULL,
+	name TEXT NOT NULL,
+	role TEXT,
+	url TEXT,
+	summary TEXT,
+	highlights_json TEXT NOT NULL DEFAULT '[]',
+	technologies_json TEXT NOT NULL DEFAULT '[]',
+	sort_order INTEGER NOT NULL DEFAULT 0,
+	created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	FOREIGN KEY(candidate_profile_id) REFERENCES candidate_profiles(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS candidate_education (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	candidate_profile_id INTEGER NOT NULL,
+	institution TEXT NOT NULL,
+	degree TEXT,
+	field TEXT,
+	start_date TEXT,
+	end_date TEXT,
+	summary TEXT,
+	sort_order INTEGER NOT NULL DEFAULT 0,
+	created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	FOREIGN KEY(candidate_profile_id) REFERENCES candidate_profiles(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS candidate_certifications (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	candidate_profile_id INTEGER NOT NULL,
+	name TEXT NOT NULL,
+	issuer TEXT,
+	issued_at TEXT,
+	expires_at TEXT,
+	url TEXT,
+	sort_order INTEGER NOT NULL DEFAULT 0,
+	created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	FOREIGN KEY(candidate_profile_id) REFERENCES candidate_profiles(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS candidate_links (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	candidate_profile_id INTEGER NOT NULL,
+	label TEXT NOT NULL,
+	url TEXT NOT NULL,
+	sort_order INTEGER NOT NULL DEFAULT 0,
+	created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	FOREIGN KEY(candidate_profile_id) REFERENCES candidate_profiles(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_candidate_work_history_profile ON candidate_work_history(candidate_profile_id);
+CREATE INDEX IF NOT EXISTS idx_candidate_projects_profile ON candidate_projects(candidate_profile_id);
+CREATE INDEX IF NOT EXISTS idx_candidate_education_profile ON candidate_education(candidate_profile_id);
+CREATE INDEX IF NOT EXISTS idx_candidate_certifications_profile ON candidate_certifications(candidate_profile_id);
+CREATE INDEX IF NOT EXISTS idx_candidate_links_profile ON candidate_links(candidate_profile_id);
+`,
+	},
 }
 
 func Migrate(ctx context.Context, db *sql.DB) error {

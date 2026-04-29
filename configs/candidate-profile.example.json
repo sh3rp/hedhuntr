@@ -1,0 +1,91 @@
+{
+  "_comment": "Example candidate profile for cmd/profile. JSON does not support comments, so _comment fields are ignored by the Go loader.",
+  "id": 1,
+  "name": "Example Candidate",
+  "headline": "Senior backend engineer focused on Go, event-driven systems, and product infrastructure.",
+  "skills": [
+    "Go",
+    "TypeScript",
+    "React",
+    "NATS",
+    "SQLite",
+    "PostgreSQL",
+    "Docker",
+    "AWS"
+  ],
+  "preferred_titles": [
+    "backend engineer",
+    "platform engineer",
+    "software engineer"
+  ],
+  "preferred_locations": [
+    "remote",
+    "New York"
+  ],
+  "remote_preference": "remote",
+  "min_salary": 140000,
+  "work_history": [
+    {
+      "company": "ExampleCo",
+      "title": "Senior Backend Engineer",
+      "location": "Remote",
+      "start_date": "2021-06",
+      "current": true,
+      "summary": "Built event-driven services and internal developer tooling.",
+      "highlights": [
+        "Designed Go services that processed asynchronous workflow events.",
+        "Improved deployment reliability with better observability and runbooks."
+      ],
+      "technologies": [
+        "Go",
+        "NATS",
+        "PostgreSQL",
+        "Docker"
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "Job Pipeline",
+      "role": "Creator",
+      "url": "https://example.com/job-pipeline",
+      "summary": "Built a local-first event pipeline for job discovery and application tracking.",
+      "highlights": [
+        "Implemented durable event consumers and SQLite persistence.",
+        "Added deterministic parsing and scoring for job descriptions."
+      ],
+      "technologies": [
+        "Go",
+        "NATS",
+        "SQLite",
+        "React"
+      ]
+    }
+  ],
+  "education": [
+    {
+      "institution": "Example University",
+      "degree": "B.S.",
+      "field": "Computer Science",
+      "end_date": "2016"
+    }
+  ],
+  "certifications": [
+    {
+      "name": "AWS Certified Developer",
+      "issuer": "Amazon Web Services",
+      "issued_at": "2023-01",
+      "url": "https://example.com/certification"
+    }
+  ],
+  "links": [
+    {
+      "label": "GitHub",
+      "url": "https://github.com/example"
+    },
+    {
+      "label": "LinkedIn",
+      "url": "https://www.linkedin.com/in/example"
+    }
+  ]
+}

@@ -108,6 +108,14 @@ The Notification Worker currently supports:
 - Sending Slack webhook messages.
 - Persisting notification channels, rules, delivery attempts, failures, status codes, and response bodies.
 
+The Profile Import command currently supports:
+
+- Loading a candidate profile from JSON.
+- Validating required profile fields.
+- Persisting core profile preferences used by matching.
+- Persisting work history, projects, education, certifications, and links.
+- Printing the stored profile after import for verification.
+
 ## Repository Layout
 
 ```text
@@ -118,6 +126,8 @@ cmd/description-fetcher/          Description fetcher command
 cmd/parser-worker/                Parser / enrichment worker command
 cmd/matching-worker/              Matching worker command
 cmd/notification-worker/          Notification worker command
+cmd/profile/                      Candidate profile import command
+configs/candidate-profile.example.json
 configs/source-producer.example.json
 configs/persistence-dispatcher.example.json
 configs/scheduler.example.json
@@ -136,6 +146,7 @@ internal/notification/           Notification formatting and webhook senders
 internal/notificationworker/     Notification worker orchestration
 internal/parser/                 Deterministic job description parser
 internal/parserworker/           Parser worker orchestration
+internal/profile/                Candidate profile model and validation
 internal/producer/               Source producer orchestration
 internal/sources/                Source adapters
 internal/store/                  SQLite migrations and repositories
@@ -312,6 +323,22 @@ go run ./cmd/notification-worker -config configs/notification-worker.example.jso
 
 The example notification channels are disabled by default. Enable a channel and replace its webhook URL before expecting outbound Discord or Slack messages.
 
+## Importing a Candidate Profile
+
+Import the example candidate profile into SQLite:
+
+```bash
+go run ./cmd/profile -db hedhuntr.db -profile configs/candidate-profile.example.json
+```
+
+Import and print the stored profile:
+
+```bash
+go run ./cmd/profile -db hedhuntr.db -profile configs/candidate-profile.example.json -print
+```
+
+The matching worker uses the first stored candidate profile when `candidate_profile_id` is `0` in `configs/matching-worker.example.json`.
+
 ## Event Output
 
 The source producer publishes `JobDiscovered` events to:
@@ -346,7 +373,7 @@ Events use the shared envelope:
 
 ## Next Implementation Steps
 
-- Add explicit candidate profile management commands or API endpoints.
 - Add resume source storage and document generation.
 - Add resume tuning worker for `applications.ready`.
+- Add candidate profile API endpoints.
 - Add the React/TypeScript dashboard shell.
