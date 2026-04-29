@@ -1,0 +1,25 @@
+{
+  "_comment": "Example config for cmd/matching-worker. JSON does not support comments, so _comment fields are documentation and are ignored by the Go loader.",
+  "nats": {
+    "_comment": "The matching worker consumes jobs.parsed and publishes jobs.matched plus applications.ready when score >= ready_threshold.",
+    "url": "nats://127.0.0.1:4222",
+    "stream": "JOBS",
+    "publish_timeout": "5s"
+  },
+  "sqlite": {
+    "_comment": "SQLite database file where candidate profiles, job matches, and application readiness records are stored.",
+    "path": "hedhuntr.db"
+  },
+  "consumer": {
+    "_comment": "Durable pull consumer settings for jobs.parsed.",
+    "durable": "matching-worker",
+    "batch_size": 10,
+    "fetch_wait": "2s",
+    "max_in_flight": 128
+  },
+  "matching": {
+    "_comment": "candidate_profile_id=0 uses the first profile or creates a default local profile. ready_threshold controls applications.ready.",
+    "candidate_profile_id": 0,
+    "ready_threshold": 70
+  }
+}

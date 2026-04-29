@@ -73,6 +73,39 @@ func TestNewJobParsed(t *testing.T) {
 	}
 }
 
+func TestNewJobMatched(t *testing.T) {
+	envelope := NewJobMatched("source", "correlation", JobMatchedPayload{
+		JobID:              42,
+		CandidateProfileID: 7,
+		Score:              82,
+		MatchedSkills:      []string{"Go"},
+		MatchedAt:          envelopeTime(),
+	})
+
+	if envelope.EventType != EventJobMatched {
+		t.Fatalf("EventType = %q, want %q", envelope.EventType, EventJobMatched)
+	}
+	if envelope.IdempotencyKey == "" {
+		t.Fatal("IdempotencyKey is empty")
+	}
+}
+
+func TestNewApplicationReady(t *testing.T) {
+	envelope := NewApplicationReady("source", "correlation", ApplicationReadyPayload{
+		JobID:              42,
+		CandidateProfileID: 7,
+		MatchScore:         82,
+		ReadyAt:            envelopeTime(),
+	})
+
+	if envelope.EventType != EventApplicationReady {
+		t.Fatalf("EventType = %q, want %q", envelope.EventType, EventApplicationReady)
+	}
+	if envelope.Payload.MatchScore != 82 {
+		t.Fatalf("MatchScore = %d, want 82", envelope.Payload.MatchScore)
+	}
+}
+
 func envelopeTime() time.Time {
 	return time.Date(2026, 4, 28, 12, 0, 0, 0, time.UTC)
 }

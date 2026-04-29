@@ -1,0 +1,24 @@
+{
+  "_comment": "Example config for cmd/parser-worker. JSON does not support comments, so _comment fields are documentation and are ignored by the Go loader.",
+  "nats": {
+    "_comment": "The parser consumes jobs.description.fetched and publishes jobs.parsed into this stream.",
+    "url": "nats://127.0.0.1:4222",
+    "stream": "JOBS",
+    "publish_timeout": "5s"
+  },
+  "sqlite": {
+    "_comment": "SQLite database file where fetched descriptions and parsed requirements are stored.",
+    "path": "hedhuntr.db"
+  },
+  "consumer": {
+    "_comment": "Durable pull consumer settings for jobs.description.fetched.",
+    "durable": "parser-worker",
+    "batch_size": 10,
+    "fetch_wait": "2s",
+    "max_in_flight": 128
+  },
+  "parser": {
+    "_comment": "Additional skill names to detect beyond the built-in deterministic list.",
+    "extra_skills": ["Svelte", "Elixir", "Phoenix"]
+  }
+}

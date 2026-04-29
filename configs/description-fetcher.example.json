@@ -1,0 +1,27 @@
+{
+  "_comment": "Example config for cmd/description-fetcher. JSON does not support comments, so _comment fields are documentation and are ignored by the Go loader.",
+  "nats": {
+    "_comment": "The fetcher consumes jobs.description.fetch.requested and publishes jobs.description.fetched into this stream.",
+    "url": "nats://127.0.0.1:4222",
+    "stream": "JOBS",
+    "publish_timeout": "5s"
+  },
+  "sqlite": {
+    "_comment": "SQLite database file where jobs and fetched descriptions are stored.",
+    "path": "hedhuntr.db"
+  },
+  "consumer": {
+    "_comment": "Durable pull consumer settings for jobs.description.fetch.requested.",
+    "durable": "description-fetcher",
+    "batch_size": 10,
+    "fetch_wait": "2s",
+    "max_in_flight": 128
+  },
+  "http_client": {
+    "_comment": "HTTP settings for retrieving job posting pages. store_raw_html=false persists only extracted text.",
+    "timeout": "20s",
+    "user_agent": "hedhuntr-description-fetcher/0.1",
+    "max_body_bytes": 2000000,
+    "store_raw_html": false
+  }
+}

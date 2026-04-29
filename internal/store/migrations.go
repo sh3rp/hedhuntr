@@ -166,6 +166,54 @@ CREATE INDEX IF NOT EXISTS idx_job_requirements_seniority ON job_requirements(se
 CREATE INDEX IF NOT EXISTS idx_job_requirements_employment_type ON job_requirements(employment_type);
 `,
 	},
+	{
+		Version: 4,
+		Name:    "create_matching_schema",
+		SQL: `
+CREATE TABLE IF NOT EXISTS candidate_profiles (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	name TEXT NOT NULL,
+	headline TEXT,
+	skills_json TEXT NOT NULL DEFAULT '[]',
+	preferred_titles_json TEXT NOT NULL DEFAULT '[]',
+	preferred_locations_json TEXT NOT NULL DEFAULT '[]',
+	remote_preference TEXT,
+	min_salary INTEGER,
+	created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE TABLE IF NOT EXISTS job_matches (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	job_id INTEGER NOT NULL,
+	candidate_profile_id INTEGER NOT NULL,
+	score INTEGER NOT NULL,
+	matched_skills_json TEXT NOT NULL DEFAULT '[]',
+	missing_skills_json TEXT NOT NULL DEFAULT '[]',
+	notes_json TEXT NOT NULL DEFAULT '[]',
+	created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	UNIQUE(job_id, candidate_profile_id),
+	FOREIGN KEY(job_id) REFERENCES jobs(id) ON DELETE CASCADE,
+	FOREIGN KEY(candidate_profile_id) REFERENCES candidate_profiles(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_job_matches_job_id ON job_matches(job_id);
+CREATE INDEX IF NOT EXISTS idx_job_matches_score ON job_matches(score);
+
+CREATE TABLE IF NOT EXISTS applications (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	job_id INTEGER NOT NULL UNIQUE,
+	candidate_profile_id INTEGER NOT NULL,
+	status TEXT NOT NULL DEFAULT 'ready_to_apply',
+	match_score INTEGER NOT NULL,
+	created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	FOREIGN KEY(job_id) REFERENCES jobs(id) ON DELETE CASCADE,
+	FOREIGN KEY(candidate_profile_id) REFERENCES candidate_profiles(id) ON DELETE CASCADE
+);
+`,
+	},
 }
 
 func Migrate(ctx context.Context, db *sql.DB) error {

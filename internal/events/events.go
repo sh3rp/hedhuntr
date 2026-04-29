@@ -15,12 +15,16 @@ const (
 	SubjectJobsDescriptionFetchRequested = "jobs.description.fetch.requested"
 	SubjectJobsDescriptionFetched        = "jobs.description.fetched"
 	SubjectJobsParsed                    = "jobs.parsed"
+	SubjectJobsMatched                   = "jobs.matched"
+	SubjectApplicationsReady             = "applications.ready"
 
 	EventJobDiscovered                = "JobDiscovered"
 	EventJobSaved                     = "JobSaved"
 	EventJobDescriptionFetchRequested = "JobDescriptionFetchRequested"
 	EventJobDescriptionFetched        = "JobDescriptionFetched"
 	EventJobParsed                    = "JobParsed"
+	EventJobMatched                   = "JobMatched"
+	EventApplicationReady             = "ApplicationReady"
 )
 
 type Envelope[T any] struct {
@@ -98,6 +102,23 @@ type JobParsedPayload struct {
 	ParsedAt         time.Time `json:"parsed_at"`
 }
 
+type JobMatchedPayload struct {
+	JobID              int64     `json:"job_id"`
+	CandidateProfileID int64     `json:"candidate_profile_id"`
+	Score              int       `json:"score"`
+	MatchedSkills      []string  `json:"matched_skills"`
+	MissingSkills      []string  `json:"missing_skills"`
+	Notes              []string  `json:"notes"`
+	MatchedAt          time.Time `json:"matched_at"`
+}
+
+type ApplicationReadyPayload struct {
+	JobID              int64     `json:"job_id"`
+	CandidateProfileID int64     `json:"candidate_profile_id"`
+	MatchScore         int       `json:"match_score"`
+	ReadyAt            time.Time `json:"ready_at"`
+}
+
 func NewJobDiscovered(sourceName string, payload JobDiscoveredPayload) Envelope[JobDiscoveredPayload] {
 	now := time.Now().UTC()
 	idempotencyKey := JobIdempotencyKey(payload)
@@ -164,6 +185,36 @@ func NewJobParsed(sourceName, correlationID string, payload JobParsedPayload) En
 	return Envelope[JobParsedPayload]{
 		EventID:        StableID("event", EventJobParsed, sourceName, idempotencyKey, now.Format(time.RFC3339Nano)),
 		EventType:      EventJobParsed,
+		EventVersion:   1,
+		OccurredAt:     now,
+		Source:         sourceName,
+		CorrelationID:  correlationID,
+		IdempotencyKey: idempotencyKey,
+		Payload:        payload,
+	}
+}
+
+func NewJobMatched(sourceName, correlationID string, payload JobMatchedPayload) Envelope[JobMatchedPayload] {
+	now := time.Now().UTC()
+	idempotencyKey := StableID("job-matched", sourceName, fmt.Sprintf("%d", payload.JobID), fmt.Sprintf("%d", payload.CandidateProfileID))
+	return Envelope[JobMatchedPayload]{
+		EventID:        StableID("event", EventJobMatched, sourceName, idempotencyKey, now.Format(time.RFC3339Nano)),
+		EventType:      EventJobMatched,
+		EventVersion:   1,
+		OccurredAt:     now,
+		Source:         sourceName,
+		CorrelationID:  correlationID,
+		IdempotencyKey: idempotencyKey,
+		Payload:        payload,
+	}
+}
+
+func NewApplicationReady(sourceName, correlationID string, payload ApplicationReadyPayload) Envelope[ApplicationReadyPayload] {
+	now := time.Now().UTC()
+	idempotencyKey := StableID("application-ready", sourceName, fmt.Sprintf("%d", payload.JobID), fmt.Sprintf("%d", payload.CandidateProfileID))
+	return Envelope[ApplicationReadyPayload]{
+		EventID:        StableID("event", EventApplicationReady, sourceName, idempotencyKey, now.Format(time.RFC3339Nano)),
+		EventType:      EventApplicationReady,
 		EventVersion:   1,
 		OccurredAt:     now,
 		Source:         sourceName,

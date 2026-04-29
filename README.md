@@ -91,6 +91,15 @@ The Parser / Enrichment Worker currently supports:
 - Updating job status to `parsed`.
 - Publishing `jobs.parsed`.
 
+The Matching Worker currently supports:
+
+- Consuming `jobs.parsed` from JetStream with a durable pull consumer.
+- Loading a candidate profile from SQLite, or creating a default local profile when none exists.
+- Scoring jobs against candidate skills, title preferences, location preferences, remote preference, and salary floor.
+- Persisting match scores, matched skills, missing skills, and notes.
+- Publishing `jobs.matched`.
+- Creating `ready_to_apply` application records and publishing `applications.ready` when a score meets the configured threshold.
+
 ## Repository Layout
 
 ```text
@@ -99,16 +108,20 @@ cmd/persistence-dispatcher/       Persistence dispatcher command
 cmd/scheduler/                    Scheduler command
 cmd/description-fetcher/          Description fetcher command
 cmd/parser-worker/                Parser / enrichment worker command
+cmd/matching-worker/              Matching worker command
 configs/source-producer.example.json
 configs/persistence-dispatcher.example.json
 configs/scheduler.example.json
 configs/description-fetcher.example.json
 configs/parser-worker.example.json
+configs/matching-worker.example.json
 internal/config/                 Configuration loading
 internal/events/                 Event envelopes and payloads
 internal/broker/                 JetStream setup helpers
 internal/descriptionfetcher/      Description fetcher orchestration and text extraction
 internal/dispatcher/             Persistence dispatcher orchestration
+internal/matcher/                Candidate-to-job scoring
+internal/matchingworker/         Matching worker orchestration
 internal/parser/                 Deterministic job description parser
 internal/parserworker/           Parser worker orchestration
 internal/producer/               Source producer orchestration
@@ -234,6 +247,31 @@ go run ./cmd/description-fetcher -config configs/description-fetcher.example.jso
 go run ./cmd/parser-worker -config configs/parser-worker.example.json -max-messages 1
 ```
 
+## Running the Matching Worker
+
+Run the matching worker continuously:
+
+```bash
+go run ./cmd/matching-worker -config configs/matching-worker.example.json
+```
+
+Process one pending parsed-job event and exit:
+
+```bash
+go run ./cmd/matching-worker -config configs/matching-worker.example.json -max-messages 1
+```
+
+Full local pipeline smoke test flow:
+
+```bash
+nats-server -js
+go run ./cmd/source-producer -config configs/source-producer.example.json
+go run ./cmd/persistence-dispatcher -config configs/persistence-dispatcher.example.json -max-messages 1
+go run ./cmd/description-fetcher -config configs/description-fetcher.example.json -max-messages 1
+go run ./cmd/parser-worker -config configs/parser-worker.example.json -max-messages 1
+go run ./cmd/matching-worker -config configs/matching-worker.example.json -max-messages 1
+```
+
 ## Event Output
 
 The source producer publishes `JobDiscovered` events to:
@@ -268,7 +306,7 @@ Events use the shared envelope:
 
 ## Next Implementation Steps
 
-- Add candidate profile storage.
-- Add job matching and scoring.
-- Add the Matching / Resume Worker for `jobs.parsed`.
+- Add explicit candidate profile management commands or API endpoints.
+- Add resume source storage and document generation.
+- Add notification worker for `jobs.matched` and `applications.ready`.
 - Add the React/TypeScript dashboard shell.
