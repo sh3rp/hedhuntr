@@ -20,10 +20,11 @@ import {
   WifiOff
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { approveApplicationForAutomation, failAutomationRun, loadDashboardData, markAutomationSubmitted, retryAutomationRun, saveCandidateProfile, updateReviewMaterialStatus, type DashboardData } from "./api/client";
 import { jobs as mockJobs, notifications as mockNotifications, pipeline as mockPipeline, resumeSources as mockResumeSources, workers as mockWorkers } from "./data/mockData";
 import { useRealtime } from "./hooks/useRealtime";
-import type { AutomationRunView, CandidateProfile, Job, JobStatus, NavItem, RealtimeEvent, ReviewApplication, ReviewMaterial, ReviewMaterialStatus, ViewKey } from "./types";
+import type { AutomationRunView, CandidateProfile, Certification, Education, Job, JobStatus, NavItem, ProfileLink, Project, RealtimeEvent, ReviewApplication, ReviewMaterial, ReviewMaterialStatus, ViewKey, WorkHistory } from "./types";
 
 const navItems: NavItem[] = [
   { key: "overview", label: "Overview", icon: LayoutDashboard },
@@ -502,12 +503,28 @@ function ProfileView({ profile, onChanged }: { profile: CandidateProfile | null;
         skills: csv(skillsText),
         preferred_titles: csv(titlesText),
         preferred_locations: csv(locationsText),
-        min_salary: draft.min_salary ? Number(draft.min_salary) : null
+        min_salary: draft.min_salary === null || draft.min_salary === undefined ? null : Number(draft.min_salary)
       });
       onChanged();
     } finally {
       setSaving(false);
     }
+  };
+
+  const updateWorkHistory = (index: number, item: WorkHistory) => {
+    setDraft({ ...draft, work_history: replaceAt(draft.work_history, index, item) });
+  };
+  const updateProject = (index: number, item: Project) => {
+    setDraft({ ...draft, projects: replaceAt(draft.projects, index, item) });
+  };
+  const updateEducation = (index: number, item: Education) => {
+    setDraft({ ...draft, education: replaceAt(draft.education, index, item) });
+  };
+  const updateCertification = (index: number, item: Certification) => {
+    setDraft({ ...draft, certifications: replaceAt(draft.certifications, index, item) });
+  };
+  const updateLink = (index: number, item: ProfileLink) => {
+    setDraft({ ...draft, links: replaceAt(draft.links, index, item) });
   };
 
   return (
@@ -560,6 +577,118 @@ function ProfileView({ profile, onChanged }: { profile: CandidateProfile | null;
             </span>
           ))}
         </div>
+        <div className="profile-sections">
+          <ProfileSection title="Work History" onAdd={() => setDraft({ ...draft, work_history: [...draft.work_history, emptyWorkHistory()] })}>
+            {draft.work_history.length === 0 ? <span className="empty-state">No work history added.</span> : null}
+            {draft.work_history.map((item, index) => (
+              <div className="profile-section-card" key={index}>
+                <div className="profile-section-header">
+                  <strong>{item.title || item.company || `Role ${index + 1}`}</strong>
+                  <button className="secondary-action danger" onClick={() => setDraft({ ...draft, work_history: removeAt(draft.work_history, index) })} type="button">
+                    Remove
+                  </button>
+                </div>
+                <div className="profile-form compact-profile-form">
+                  <TextField label="Company" value={item.company} onChange={(value) => updateWorkHistory(index, { ...item, company: value })} />
+                  <TextField label="Title" value={item.title} onChange={(value) => updateWorkHistory(index, { ...item, title: value })} />
+                  <TextField label="Location" value={item.location} onChange={(value) => updateWorkHistory(index, { ...item, location: value })} />
+                  <TextField label="Start Date" value={item.start_date} onChange={(value) => updateWorkHistory(index, { ...item, start_date: value })} />
+                  <TextField label="End Date" value={item.end_date} onChange={(value) => updateWorkHistory(index, { ...item, end_date: value })} />
+                  <label className="checkbox-field">
+                    <input checked={Boolean(item.current)} type="checkbox" onChange={(event) => updateWorkHistory(index, { ...item, current: event.target.checked })} />
+                    <span>Current Role</span>
+                  </label>
+                  <TextAreaField label="Summary" value={item.summary} onChange={(value) => updateWorkHistory(index, { ...item, summary: value })} />
+                  <TextField label="Highlights" value={(item.highlights ?? []).join(", ")} onChange={(value) => updateWorkHistory(index, { ...item, highlights: csv(value) })} wide />
+                  <TextField label="Technologies" value={(item.technologies ?? []).join(", ")} onChange={(value) => updateWorkHistory(index, { ...item, technologies: csv(value) })} wide />
+                </div>
+              </div>
+            ))}
+          </ProfileSection>
+
+          <ProfileSection title="Projects" onAdd={() => setDraft({ ...draft, projects: [...draft.projects, emptyProject()] })}>
+            {draft.projects.length === 0 ? <span className="empty-state">No projects added.</span> : null}
+            {draft.projects.map((item, index) => (
+              <div className="profile-section-card" key={index}>
+                <div className="profile-section-header">
+                  <strong>{item.name || `Project ${index + 1}`}</strong>
+                  <button className="secondary-action danger" onClick={() => setDraft({ ...draft, projects: removeAt(draft.projects, index) })} type="button">
+                    Remove
+                  </button>
+                </div>
+                <div className="profile-form compact-profile-form">
+                  <TextField label="Name" value={item.name} onChange={(value) => updateProject(index, { ...item, name: value })} />
+                  <TextField label="Role" value={item.role} onChange={(value) => updateProject(index, { ...item, role: value })} />
+                  <TextField label="URL" value={item.url} onChange={(value) => updateProject(index, { ...item, url: value })} />
+                  <TextAreaField label="Summary" value={item.summary} onChange={(value) => updateProject(index, { ...item, summary: value })} />
+                  <TextField label="Highlights" value={(item.highlights ?? []).join(", ")} onChange={(value) => updateProject(index, { ...item, highlights: csv(value) })} wide />
+                  <TextField label="Technologies" value={(item.technologies ?? []).join(", ")} onChange={(value) => updateProject(index, { ...item, technologies: csv(value) })} wide />
+                </div>
+              </div>
+            ))}
+          </ProfileSection>
+
+          <ProfileSection title="Education" onAdd={() => setDraft({ ...draft, education: [...draft.education, emptyEducation()] })}>
+            {draft.education.length === 0 ? <span className="empty-state">No education added.</span> : null}
+            {draft.education.map((item, index) => (
+              <div className="profile-section-card" key={index}>
+                <div className="profile-section-header">
+                  <strong>{item.institution || `Education ${index + 1}`}</strong>
+                  <button className="secondary-action danger" onClick={() => setDraft({ ...draft, education: removeAt(draft.education, index) })} type="button">
+                    Remove
+                  </button>
+                </div>
+                <div className="profile-form compact-profile-form">
+                  <TextField label="Institution" value={item.institution} onChange={(value) => updateEducation(index, { ...item, institution: value })} />
+                  <TextField label="Degree" value={item.degree} onChange={(value) => updateEducation(index, { ...item, degree: value })} />
+                  <TextField label="Field" value={item.field} onChange={(value) => updateEducation(index, { ...item, field: value })} />
+                  <TextField label="Start Date" value={item.start_date} onChange={(value) => updateEducation(index, { ...item, start_date: value })} />
+                  <TextField label="End Date" value={item.end_date} onChange={(value) => updateEducation(index, { ...item, end_date: value })} />
+                  <TextAreaField label="Summary" value={item.summary} onChange={(value) => updateEducation(index, { ...item, summary: value })} />
+                </div>
+              </div>
+            ))}
+          </ProfileSection>
+
+          <ProfileSection title="Certifications" onAdd={() => setDraft({ ...draft, certifications: [...draft.certifications, emptyCertification()] })}>
+            {draft.certifications.length === 0 ? <span className="empty-state">No certifications added.</span> : null}
+            {draft.certifications.map((item, index) => (
+              <div className="profile-section-card" key={index}>
+                <div className="profile-section-header">
+                  <strong>{item.name || `Certification ${index + 1}`}</strong>
+                  <button className="secondary-action danger" onClick={() => setDraft({ ...draft, certifications: removeAt(draft.certifications, index) })} type="button">
+                    Remove
+                  </button>
+                </div>
+                <div className="profile-form compact-profile-form">
+                  <TextField label="Name" value={item.name} onChange={(value) => updateCertification(index, { ...item, name: value })} />
+                  <TextField label="Issuer" value={item.issuer} onChange={(value) => updateCertification(index, { ...item, issuer: value })} />
+                  <TextField label="Issued At" value={item.issued_at} onChange={(value) => updateCertification(index, { ...item, issued_at: value })} />
+                  <TextField label="Expires At" value={item.expires_at} onChange={(value) => updateCertification(index, { ...item, expires_at: value })} />
+                  <TextField label="URL" value={item.url} onChange={(value) => updateCertification(index, { ...item, url: value })} wide />
+                </div>
+              </div>
+            ))}
+          </ProfileSection>
+
+          <ProfileSection title="Links" onAdd={() => setDraft({ ...draft, links: [...draft.links, emptyLink()] })}>
+            {draft.links.length === 0 ? <span className="empty-state">No links added.</span> : null}
+            {draft.links.map((item, index) => (
+              <div className="profile-section-card" key={index}>
+                <div className="profile-section-header">
+                  <strong>{item.label || `Link ${index + 1}`}</strong>
+                  <button className="secondary-action danger" onClick={() => setDraft({ ...draft, links: removeAt(draft.links, index) })} type="button">
+                    Remove
+                  </button>
+                </div>
+                <div className="profile-form compact-profile-form">
+                  <TextField label="Label" value={item.label} onChange={(value) => updateLink(index, { ...item, label: value })} />
+                  <TextField label="URL" value={item.url} onChange={(value) => updateLink(index, { ...item, url: value })} />
+                </div>
+              </div>
+            ))}
+          </ProfileSection>
+        </div>
         <div className="material-actions profile-actions">
           <button className="primary-action" disabled={saving} onClick={save} type="button">
             <CheckCircle2 size={18} />
@@ -572,6 +701,38 @@ function ProfileView({ profile, onChanged }: { profile: CandidateProfile | null;
         <code className="command-line">go run ./cmd/profile -db hedhuntr.db -profile configs/candidate-profile.example.json -print</code>
       </section>
     </div>
+  );
+}
+
+function ProfileSection({ children, onAdd, title }: { children: ReactNode; onAdd: () => void; title: string }) {
+  return (
+    <section className="profile-section">
+      <div className="profile-section-title">
+        <h3>{title}</h3>
+        <button className="secondary-action" onClick={onAdd} type="button">
+          Add
+        </button>
+      </div>
+      <div className="profile-section-list">{children}</div>
+    </section>
+  );
+}
+
+function TextField({ label, onChange, value, wide }: { label: string; onChange: (value: string) => void; value?: string; wide?: boolean }) {
+  return (
+    <label className={wide ? "wide-field" : undefined}>
+      <span className="field-label">{label}</span>
+      <input value={value ?? ""} onChange={(event) => onChange(event.target.value)} />
+    </label>
+  );
+}
+
+function TextAreaField({ label, onChange, value }: { label: string; onChange: (value: string) => void; value?: string }) {
+  return (
+    <label className="wide-field">
+      <span className="field-label">{label}</span>
+      <textarea value={value ?? ""} onChange={(event) => onChange(event.target.value)} />
+    </label>
   );
 }
 
@@ -590,6 +751,67 @@ function emptyProfile(): CandidateProfile {
     certifications: [],
     links: []
   };
+}
+
+function emptyWorkHistory(): WorkHistory {
+  return {
+    company: "",
+    title: "",
+    location: "",
+    start_date: "",
+    end_date: "",
+    current: false,
+    summary: "",
+    highlights: [],
+    technologies: []
+  };
+}
+
+function emptyProject(): Project {
+  return {
+    name: "",
+    role: "",
+    url: "",
+    summary: "",
+    highlights: [],
+    technologies: []
+  };
+}
+
+function emptyEducation(): Education {
+  return {
+    institution: "",
+    degree: "",
+    field: "",
+    start_date: "",
+    end_date: "",
+    summary: ""
+  };
+}
+
+function emptyCertification(): Certification {
+  return {
+    name: "",
+    issuer: "",
+    issued_at: "",
+    expires_at: "",
+    url: ""
+  };
+}
+
+function emptyLink(): ProfileLink {
+  return {
+    label: "",
+    url: ""
+  };
+}
+
+function replaceAt<T>(items: T[], index: number, value: T) {
+  return items.map((item, itemIndex) => (itemIndex === index ? value : item));
+}
+
+function removeAt<T>(items: T[], index: number) {
+  return items.filter((_, itemIndex) => itemIndex !== index);
 }
 
 function csv(value: string) {

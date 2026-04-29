@@ -20,6 +20,7 @@ body {
 
 button,
 input,
+textarea,
 select {
   font: inherit;
 }
@@ -608,14 +609,29 @@ button:disabled {
 }
 
 .profile-form input,
+.profile-form textarea,
 .profile-form select {
-  min-height: 40px;
   width: 100%;
-  padding: 0 10px;
   border: 1px solid #ccd6ce;
   border-radius: 6px;
   color: #1d2b28;
   background: #ffffff;
+}
+
+.profile-form input,
+.profile-form select {
+  min-height: 40px;
+  padding: 0 10px;
+}
+
+.profile-form textarea {
+  min-height: 92px;
+  padding: 10px;
+  resize: vertical;
+}
+
+.compact-profile-form {
+  margin-bottom: 0;
 }
 
 .wide-field {
@@ -624,6 +640,59 @@ button:disabled {
 
 .profile-actions {
   margin-top: 16px;
+}
+
+.profile-sections {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.profile-section {
+  display: grid;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid #e4eae5;
+}
+
+.profile-section-title,
+.profile-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.profile-section-title h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.profile-section-list {
+  display: grid;
+  gap: 12px;
+}
+
+.profile-section-card {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #e1e7e1;
+  border-radius: 8px;
+  background: #fbfcfa;
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding-top: 22px;
+}
+
+.checkbox-field input {
+  width: auto;
+  min-height: 0;
 }
 
 .field-label {

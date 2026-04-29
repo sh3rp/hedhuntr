@@ -98,6 +98,49 @@ export type ReviewApplication = {
   materials: ReviewMaterial[];
 };
 
+export type WorkHistory = {
+  company: string;
+  title: string;
+  location?: string;
+  start_date?: string;
+  end_date?: string;
+  current?: boolean;
+  summary?: string;
+  highlights?: string[];
+  technologies?: string[];
+};
+
+export type Project = {
+  name: string;
+  role?: string;
+  url?: string;
+  summary?: string;
+  highlights?: string[];
+  technologies?: string[];
+};
+
+export type Education = {
+  institution: string;
+  degree?: string;
+  field?: string;
+  start_date?: string;
+  end_date?: string;
+  summary?: string;
+};
+
+export type Certification = {
+  name: string;
+  issuer?: string;
+  issued_at?: string;
+  expires_at?: string;
+  url?: string;
+};
+
+export type ProfileLink = {
+  label: string;
+  url: string;
+};
+
 export type CandidateProfile = {
   id?: number;
   name: string;
@@ -107,11 +150,11 @@ export type CandidateProfile = {
   preferred_locations: string[];
   remote_preference?: "remote" | "hybrid" | "onsite" | "";
   min_salary?: number | null;
-  work_history: unknown[];
-  projects: unknown[];
-  education: unknown[];
-  certifications: unknown[];
-  links: unknown[];
+  work_history: WorkHistory[];
+  projects: Project[];
+  education: Education[];
+  certifications: Certification[];
+  links: ProfileLink[];
 };
 
 export type AutomationRun = {

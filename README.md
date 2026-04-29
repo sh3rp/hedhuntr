@@ -146,7 +146,7 @@ The API Service currently supports:
 
 - Serving dashboard data from SQLite over HTTP.
 - Exposing health, jobs, pipeline, profile, resume source, notification, and worker endpoints.
-- Updating candidate profile core fields through the API.
+- Updating candidate profile core fields and structured sections through the API.
 - Exposing review queue endpoints for generated application materials.
 - Updating generated material status for approve, reject, needs-changes, and regeneration-requested actions.
 - Creating automation handoff packets from approved application materials.
@@ -161,7 +161,7 @@ The React/Electron UI currently supports:
 
 - Loading live dashboard data from the Go API.
 - Displaying job pipeline status, match scores, notifications, worker state, candidate profile, and resume sources.
-- Editing candidate profile name, headline, skills, preferences, and salary floor.
+- Editing candidate profile name, headline, skills, preferences, salary floor, work history, projects, education, certifications, and links.
 - Reviewing generated resume and cover letter Markdown drafts.
 - Approving, rejecting, requesting changes, or requesting regeneration for generated materials.
 - Approving reviewed materials for an assisted automation handoff.
@@ -595,5 +595,4 @@ Events use the shared envelope:
 ## Next Implementation Steps
 
 - Add ATS-specific automation adapters for supported application systems.
-- Expand profile editing to work history, projects, education, certifications, and links.
 - Add interview tracking.
