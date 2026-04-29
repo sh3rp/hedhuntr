@@ -1,11 +1,16 @@
 {
+  "_comment": "Example config for cmd/scheduler. JSON does not support comments, so _comment fields are documentation and are ignored by the Go loader.",
   "sqlite": {
+    "_comment": "SQLite database file where scheduler source definitions, runs, and checkpoints are stored.",
     "path": "hedhuntr.db"
   },
+  "_source_producer_config_comment": "The scheduler reuses this file for source adapter settings and NATS publishing settings.",
   "source_producer_config": "configs/source-producer.example.json",
+  "_poll_interval_comment": "How often the continuous scheduler wakes up to check for due sources. -run-once ignores this loop interval.",
   "poll_interval": "1m",
   "sources": [
     {
+      "_comment": "This source must match a source name in source_producer_config. It is due every hour after its previous run.",
       "name": "example-static",
       "enabled": true,
       "schedule": "hourly",
@@ -13,6 +18,7 @@
       "timeout": "2m"
     },
     {
+      "_comment": "Disabled daily Greenhouse example. Enable both here and in source-producer.example.json before using it.",
       "name": "example-greenhouse",
       "enabled": false,
       "schedule": "daily",

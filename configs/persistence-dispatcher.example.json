@@ -1,13 +1,17 @@
 {
+  "_comment": "Example config for cmd/persistence-dispatcher. JSON does not support comments, so _comment fields are documentation and are ignored by the Go loader.",
   "nats": {
+    "_comment": "The dispatcher consumes jobs.discovered and publishes jobs.saved plus jobs.description.fetch.requested into this stream.",
     "url": "nats://127.0.0.1:4222",
     "stream": "JOBS",
     "publish_timeout": "5s"
   },
   "sqlite": {
+    "_comment": "SQLite database file used for jobs, descriptions, event audit rows, source runs, and scheduler state.",
     "path": "hedhuntr.db"
   },
   "consumer": {
+    "_comment": "Durable pull consumer settings for jobs.discovered. fetch_wait controls how long one fetch call waits for messages.",
     "durable": "persistence-dispatcher",
     "batch_size": 10,
     "fetch_wait": "2s",

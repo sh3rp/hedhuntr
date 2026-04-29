@@ -1,15 +1,19 @@
 {
+  "_comment": "Example config for cmd/source-producer. JSON does not support comments, so _comment fields are documentation and are ignored by the Go loader.",
   "nats": {
+    "_comment": "NATS JetStream connection. The producer publishes JobDiscovered events to the jobs.discovered subject in the JOBS stream.",
     "url": "nats://127.0.0.1:4222",
     "stream": "JOBS",
     "publish_timeout": "5s"
   },
   "sources": [
     {
+      "_comment": "Static source for local testing. It publishes the sample jobs below without calling an external job board.",
       "name": "example-static",
       "type": "static",
       "enabled": true,
       "settings": {
+        "_comment": "Each static job is normalized into one JobDiscovered event.",
         "jobs": [
           {
             "external_id": "example-001",
@@ -27,10 +31,12 @@
       }
     },
     {
+      "_comment": "Greenhouse source example. Set enabled to true and replace board_token with a real Greenhouse board token.",
       "name": "example-greenhouse",
       "type": "greenhouse",
       "enabled": false,
       "settings": {
+        "_comment": "include_content=true asks Greenhouse for job description content when available.",
         "board_token": "example",
         "company": "ExampleCo",
         "include_content": true
