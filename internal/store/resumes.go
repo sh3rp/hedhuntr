@@ -22,6 +22,25 @@ type CreateResumeSourceParams struct {
 	DocumentID         int64
 }
 
+type CreateResumeVersionParams struct {
+	ResumeSourceID int64
+	JobID          int64
+	DocumentID     int64
+	Status         string
+	Notes          string
+}
+
+type CreateApplicationMaterialParams struct {
+	ApplicationID      int64
+	JobID              int64
+	CandidateProfileID int64
+	Kind               string
+	DocumentID         int64
+	Status             string
+	Notes              string
+	SourceEventID      string
+}
+
 type ResumeSource struct {
 	ID                 int64         `json:"id"`
 	CandidateProfileID sql.NullInt64 `json:"candidateProfileId"`
@@ -65,6 +84,83 @@ VALUES(?, ?, ?, ?)`,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("create resume source: %w", err)
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	return id, nil
+}
+
+func (s *Store) CreateResumeVersion(ctx context.Context, params CreateResumeVersionParams) (int64, error) {
+	if params.Status == "" {
+		params.Status = "draft"
+	}
+	result, err := s.db.ExecContext(ctx, `
+INSERT INTO resume_versions(resume_source_id, job_id, document_id, status, notes)
+VALUES(?, ?, ?, ?, ?)`,
+		params.ResumeSourceID,
+		nullInt64(params.JobID),
+		params.DocumentID,
+		params.Status,
+		params.Notes,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("create resume version: %w", err)
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	return id, nil
+}
+
+func (s *Store) CreateApplicationMaterial(ctx context.Context, params CreateApplicationMaterialParams) (int64, error) {
+	if params.Status == "" {
+		params.Status = "draft"
+	}
+	if params.SourceEventID != "" {
+		var existingID int64
+		err := s.db.QueryRowContext(ctx, `
+SELECT id FROM application_materials
+WHERE application_id = ? AND kind = ? AND source_event_id = ?`,
+			params.ApplicationID,
+			params.Kind,
+			params.SourceEventID,
+		).Scan(&existingID)
+		if err != nil && err != sql.ErrNoRows {
+			return 0, fmt.Errorf("load application material: %w", err)
+		}
+		if existingID > 0 {
+			_, err = s.db.ExecContext(ctx, `
+UPDATE application_materials
+SET document_id = ?, status = ?, notes = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+WHERE id = ?`,
+				params.DocumentID,
+				params.Status,
+				params.Notes,
+				existingID,
+			)
+			if err != nil {
+				return 0, fmt.Errorf("update application material: %w", err)
+			}
+			return existingID, nil
+		}
+	}
+	result, err := s.db.ExecContext(ctx, `
+INSERT INTO application_materials(application_id, job_id, candidate_profile_id, kind, document_id, status, notes, source_event_id)
+VALUES(?, ?, ?, ?, ?, ?, ?, ?)`,
+		params.ApplicationID,
+		params.JobID,
+		params.CandidateProfileID,
+		params.Kind,
+		params.DocumentID,
+		params.Status,
+		params.Notes,
+		nullIfEmpty(params.SourceEventID),
+	)
+	if err != nil {
+		return 0, fmt.Errorf("create application material: %w", err)
 	}
 	id, err := result.LastInsertId()
 	if err != nil {
@@ -140,4 +236,11 @@ func int64PtrOrNil(value *int64) any {
 		return nil
 	}
 	return *value
+}
+
+func nullInt64(value int64) any {
+	if value <= 0 {
+		return nil
+	}
+	return value
 }

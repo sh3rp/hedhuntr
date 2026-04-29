@@ -383,6 +383,35 @@ CREATE INDEX IF NOT EXISTS idx_resume_sources_candidate ON resume_sources(candid
 CREATE INDEX IF NOT EXISTS idx_resume_versions_source ON resume_versions(resume_source_id);
 `,
 	},
+	{
+		Version: 8,
+		Name:    "create_application_materials_schema",
+		SQL: `
+CREATE TABLE IF NOT EXISTS application_materials (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	application_id INTEGER NOT NULL,
+	job_id INTEGER NOT NULL,
+	candidate_profile_id INTEGER NOT NULL,
+	kind TEXT NOT NULL,
+	document_id INTEGER NOT NULL,
+	status TEXT NOT NULL DEFAULT 'draft',
+	notes TEXT,
+	source_event_id TEXT,
+	created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	FOREIGN KEY(application_id) REFERENCES applications(id) ON DELETE CASCADE,
+	FOREIGN KEY(job_id) REFERENCES jobs(id) ON DELETE CASCADE,
+	FOREIGN KEY(candidate_profile_id) REFERENCES candidate_profiles(id) ON DELETE CASCADE,
+	FOREIGN KEY(document_id) REFERENCES documents(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_application_materials_application ON application_materials(application_id);
+CREATE INDEX IF NOT EXISTS idx_application_materials_job ON application_materials(job_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_application_materials_unique_draft
+	ON application_materials(application_id, kind, source_event_id)
+	WHERE source_event_id IS NOT NULL AND source_event_id != '';
+`,
+	},
 }
 
 func Migrate(ctx context.Context, db *sql.DB) error {

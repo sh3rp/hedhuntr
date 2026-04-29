@@ -71,6 +71,7 @@ func LoadAPI(path string) (API, error) {
 			"jobs.parsed",
 			"jobs.matched",
 			"applications.ready",
+			"applications.materials.drafted",
 			"notifications.>",
 		}
 	}

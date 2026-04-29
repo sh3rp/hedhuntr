@@ -1,0 +1,29 @@
+{
+  "_comment": "Example config for cmd/resume-tuning-worker. JSON does not support comments, so _comment fields are documentation and are ignored by the Go loader.",
+  "nats": {
+    "_comment": "The resume tuning worker consumes applications.ready and publishes applications.materials.drafted.",
+    "url": "nats://127.0.0.1:4222",
+    "stream": "JOBS",
+    "publish_timeout": "5s"
+  },
+  "sqlite": {
+    "_comment": "SQLite database file containing applications, candidate profiles, resume sources, and generated material metadata.",
+    "path": "hedhuntr.db"
+  },
+  "consumer": {
+    "_comment": "Durable pull consumer settings for applications.ready.",
+    "durable": "resume-tuning-worker",
+    "batch_size": 5,
+    "fetch_wait": "2s",
+    "max_in_flight": 64
+  },
+  "documents": {
+    "_comment": "Root directory where tailored resume and cover letter Markdown files are stored.",
+    "root_dir": "data/documents"
+  },
+  "tuning": {
+    "_comment": "resume_source_id=0 chooses the most recent source for the candidate profile, falling back to an unassigned source. max_highlights limits role-specific bullets.",
+    "resume_source_id": 0,
+    "max_highlights": 6
+  }
+}

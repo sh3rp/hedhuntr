@@ -107,6 +107,7 @@ The API service bridges internal state changes to WebSocket clients by subscribi
 - `jobs.parsed`
 - `jobs.matched`
 - `applications.ready`
+- `applications.materials.drafted`
 - `notifications.>`
 
 The WebSocket layer sends view-oriented messages, not database internals. React and Electron clients should reconnect with backoff, resubscribe after reconnecting, keep a small visible event feed, and refresh affected dashboard state when live events arrive.
@@ -316,7 +317,7 @@ Owns:
 - Search index updates.
 - Parser confidence and error reporting.
 
-### Matching / Resume Worker
+### Matching Worker
 
 Type: Go JetStream consumer.
 
@@ -325,15 +326,31 @@ Responsibilities:
 - Consume `jobs.parsed`.
 - Score job fit against candidate profile, preferences, and resume sources.
 - Identify matched skills, missing requirements, and risk notes.
-- Generate tailored resume and cover letter drafts when configured.
-- Store generated document metadata and files.
 - Emit `jobs.matched` and, when appropriate, `applications.ready`.
 
 Owns:
 
 - Candidate-to-job fit scoring.
+- Ready-to-apply threshold logic.
+- Match notes and skill gap metadata.
+
+### Resume Tuning Worker
+
+Type: Go JetStream consumer.
+
+Responsibilities:
+
+- Consume `applications.ready`.
+- Load the ready application, parsed job context, candidate profile, and base resume source.
+- Generate tailored resume and cover letter drafts for review.
+- Store generated document files and SQLite metadata.
+- Emit `applications.materials.drafted`.
+
+Owns:
+
 - Resume draft generation.
 - Cover letter draft generation.
+- Draft material status and review metadata.
 - Truthfulness checks against approved candidate source material.
 
 Generated materials must be based only on the candidate's source profile, resume history, projects, and approved facts.
@@ -484,6 +501,7 @@ Core subjects:
 | `jobs.parsed` | Description metadata was extracted. |
 | `jobs.matched` | Job was scored against the candidate profile. |
 | `applications.ready` | An application packet is ready for user review. |
+| `applications.materials.drafted` | Draft resume and cover letter materials were generated for human review. |
 | `applications.submitted` | Application was submitted or marked submitted. |
 | `interviews.updated` | Interview state changed. |
 | `notifications.requested` | A message should be routed to configured channels. |

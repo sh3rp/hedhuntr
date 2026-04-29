@@ -30,6 +30,7 @@
       "jobs.parsed",
       "jobs.matched",
       "applications.ready",
+      "applications.materials.drafted",
       "notifications.>"
     ]
   }

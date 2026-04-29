@@ -124,6 +124,15 @@ The Resume command currently supports:
 - Creating resume source records.
 - Listing stored resume sources.
 
+The Resume Tuning Worker currently supports:
+
+- Consuming `applications.ready` from JetStream with a durable pull consumer.
+- Loading the ready application, parsed job context, candidate profile, and base resume source.
+- Generating deterministic Markdown resume and cover letter drafts from stored candidate data.
+- Persisting generated documents under local document storage.
+- Creating draft `resume_versions` and `application_materials` records for human review.
+- Publishing `applications.materials.drafted`.
+
 The API Service currently supports:
 
 - Serving dashboard data from SQLite over HTTP.
@@ -150,6 +159,7 @@ cmd/description-fetcher/          Description fetcher command
 cmd/parser-worker/                Parser / enrichment worker command
 cmd/matching-worker/              Matching worker command
 cmd/notification-worker/          Notification worker command
+cmd/resume-tuning-worker/         Resume and cover letter draft worker command
 cmd/api/                          API service command
 cmd/profile/                      Candidate profile import command
 cmd/resume/                       Resume source import/list command
@@ -162,6 +172,7 @@ configs/description-fetcher.example.json
 configs/parser-worker.example.json
 configs/matching-worker.example.json
 configs/notification-worker.example.json
+configs/resume-tuning-worker.example.json
 examples/resume.example.md
 electron/                         Electron desktop shell
 internal/config/                 Configuration loading
@@ -179,6 +190,8 @@ internal/parser/                 Deterministic job description parser
 internal/parserworker/           Parser worker orchestration
 internal/profile/                Candidate profile model and validation
 internal/producer/               Source producer orchestration
+internal/resumetuner/            Deterministic resume and cover letter drafting
+internal/resumetuningworker/     Resume tuning worker orchestration
 internal/sources/                Source adapters
 internal/store/                  SQLite migrations and repositories
 src/                             React/TypeScript frontend
@@ -392,6 +405,36 @@ List stored resume sources:
 go run ./cmd/resume list -db hedhuntr.db
 ```
 
+## Running the Resume Tuning Worker
+
+Run the resume tuning worker continuously:
+
+```bash
+go run ./cmd/resume-tuning-worker -config configs/resume-tuning-worker.example.json
+```
+
+Process one pending ready-application event and exit:
+
+```bash
+go run ./cmd/resume-tuning-worker -config configs/resume-tuning-worker.example.json -max-messages 1
+```
+
+Resume tuning requires a candidate profile, at least one imported resume source, and an `applications.ready` event. Generated drafts are stored as Markdown documents and remain in `draft` status for human review.
+
+Application materials flow:
+
+```bash
+nats-server -js
+go run ./cmd/profile -db hedhuntr.db -profile configs/candidate-profile.example.json
+go run ./cmd/resume import -db hedhuntr.db -documents data/documents -file examples/resume.example.md -name "Base Resume" -candidate-profile-id 1
+go run ./cmd/source-producer -config configs/source-producer.example.json
+go run ./cmd/persistence-dispatcher -config configs/persistence-dispatcher.example.json -max-messages 1
+go run ./cmd/description-fetcher -config configs/description-fetcher.example.json -max-messages 1
+go run ./cmd/parser-worker -config configs/parser-worker.example.json -max-messages 1
+go run ./cmd/matching-worker -config configs/matching-worker.example.json -max-messages 1
+go run ./cmd/resume-tuning-worker -config configs/resume-tuning-worker.example.json -max-messages 1
+```
+
 ## Running the API Service
 
 Start the Go API service:
@@ -401,7 +444,7 @@ go run ./cmd/api -config configs/api.example.json
 ```
 
 The example config listens on `127.0.0.1:8080`, reads from `hedhuntr.db`, allows the local Vite frontend, and allows `http://zoe.ts.shep.run:5173`.
-It also enables the realtime bridge, which subscribes to NATS subjects such as `jobs.saved`, `jobs.parsed`, `jobs.matched`, and `applications.ready`.
+It also enables the realtime bridge, which subscribes to NATS subjects such as `jobs.saved`, `jobs.parsed`, `jobs.matched`, `applications.ready`, and `applications.materials.drafted`.
 
 Available endpoints:
 
@@ -500,6 +543,5 @@ Events use the shared envelope:
 
 ## Next Implementation Steps
 
-- Add resume tuning worker for `applications.ready`.
 - Add candidate profile API endpoints.
 - Add user actions for application review and interview tracking.

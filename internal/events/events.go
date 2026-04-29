@@ -17,6 +17,7 @@ const (
 	SubjectJobsParsed                    = "jobs.parsed"
 	SubjectJobsMatched                   = "jobs.matched"
 	SubjectApplicationsReady             = "applications.ready"
+	SubjectApplicationsMaterialsDrafted  = "applications.materials.drafted"
 
 	EventJobDiscovered                = "JobDiscovered"
 	EventJobSaved                     = "JobSaved"
@@ -25,6 +26,7 @@ const (
 	EventJobParsed                    = "JobParsed"
 	EventJobMatched                   = "JobMatched"
 	EventApplicationReady             = "ApplicationReady"
+	EventApplicationMaterialsDrafted  = "ApplicationMaterialsDrafted"
 )
 
 type Envelope[T any] struct {
@@ -117,6 +119,19 @@ type ApplicationReadyPayload struct {
 	CandidateProfileID int64     `json:"candidate_profile_id"`
 	MatchScore         int       `json:"match_score"`
 	ReadyAt            time.Time `json:"ready_at"`
+}
+
+type ApplicationMaterialsDraftedPayload struct {
+	JobID              int64     `json:"job_id"`
+	ApplicationID      int64     `json:"application_id"`
+	CandidateProfileID int64     `json:"candidate_profile_id"`
+	ResumeSourceID     int64     `json:"resume_source_id"`
+	ResumeVersionID    int64     `json:"resume_version_id"`
+	ResumeDocumentID   int64     `json:"resume_document_id"`
+	CoverLetterID      int64     `json:"cover_letter_id"`
+	CoverLetterDocID   int64     `json:"cover_letter_document_id"`
+	Status             string    `json:"status"`
+	DraftedAt          time.Time `json:"drafted_at"`
 }
 
 func NewJobDiscovered(sourceName string, payload JobDiscoveredPayload) Envelope[JobDiscoveredPayload] {
@@ -224,6 +239,21 @@ func NewApplicationReady(sourceName, correlationID string, payload ApplicationRe
 	}
 }
 
+func NewApplicationMaterialsDrafted(sourceName, correlationID string, payload ApplicationMaterialsDraftedPayload) Envelope[ApplicationMaterialsDraftedPayload] {
+	now := time.Now().UTC()
+	idempotencyKey := StableID("application-materials-drafted", sourceName, fmt.Sprintf("%d", payload.JobID), fmt.Sprintf("%d", payload.CandidateProfileID), fmt.Sprintf("%d", payload.ResumeSourceID))
+	return Envelope[ApplicationMaterialsDraftedPayload]{
+		EventID:        StableID("event", EventApplicationMaterialsDrafted, sourceName, idempotencyKey, now.Format(time.RFC3339Nano)),
+		EventType:      EventApplicationMaterialsDrafted,
+		EventVersion:   1,
+		OccurredAt:     now,
+		Source:         sourceName,
+		CorrelationID:  correlationID,
+		IdempotencyKey: idempotencyKey,
+		Payload:        payload,
+	}
+}
+
 func JobIdempotencyKey(job JobDiscoveredPayload) string {
 	if job.ExternalID != "" {
 		return fmt.Sprintf("%s:%s", normalize(job.Source), normalize(job.ExternalID))
@@ -232,8 +262,8 @@ func JobIdempotencyKey(job JobDiscoveredPayload) string {
 		return fmt.Sprintf("%s:%s", normalize(job.Source), normalize(job.ApplicationURL))
 	}
 	// Fallback to a strict hash of essential fields to avoid collision while minimizing "fuzziness"
-	return fmt.Sprintf("%s:%s", 
-		normalize(job.Source), 
+	return fmt.Sprintf("%s:%s",
+		normalize(job.Source),
 		StableID("job-fallback", job.Company, job.Title, job.Location, job.SourceURL),
 	)
 }

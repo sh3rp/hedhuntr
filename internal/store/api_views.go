@@ -137,10 +137,12 @@ func (s *Store) APIWorkers(ctx context.Context) ([]APIWorkerState, error) {
 	sourceRuns, _ := s.countRows(ctx, "job_source_runs")
 	jobEvents, _ := s.countRows(ctx, "job_events")
 	notifications, _ := s.countRows(ctx, "notification_deliveries")
+	materials, _ := s.countRows(ctx, "application_materials")
 	return []APIWorkerState{
 		{Name: "Scheduler", Subject: "source runs", Status: statusFromCount(sourceRuns), Processed: sourceRuns},
 		{Name: "Dispatcher", Subject: "jobs.discovered", Status: statusFromCount(jobEvents), Processed: jobEvents},
 		{Name: "Notifications", Subject: "jobs.matched/applications.ready", Status: statusFromCount(notifications), Processed: notifications},
+		{Name: "Resume Tuning", Subject: "applications.ready", Status: statusFromCount(materials), Processed: materials},
 	}, nil
 }
 
