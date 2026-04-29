@@ -2,7 +2,7 @@
 
 Hedhuntr is an event-driven job search and application workflow system. It discovers job listings from job aggregators and applicant tracking systems, captures job descriptions, stores application state in SQLite, and coordinates enrichment, notifications, resume tailoring, assisted applications, and interview tracking through NATS JetStream.
 
-The backend is written in Go. The frontend will be React and TypeScript.
+The backend is written in Go. The frontend is React and TypeScript with an Electron desktop shell.
 
 ## Goals
 
@@ -39,7 +39,7 @@ Primary components:
 
 ## Current Implementation
 
-The initial implementation starts with the Source Producer Service.
+The initial implementation covers the ingestion pipeline, worker commands, API service, web UI, and desktop shell.
 
 The Source Producer currently supports:
 
@@ -124,6 +124,22 @@ The Resume command currently supports:
 - Creating resume source records.
 - Listing stored resume sources.
 
+The API Service currently supports:
+
+- Serving dashboard data from SQLite over HTTP.
+- Exposing health, jobs, pipeline, profile, resume source, notification, and worker endpoints.
+- Providing WebSocket subscriptions for React and Electron clients.
+- Subscribing to NATS workflow events and broadcasting live dashboard updates over WebSockets.
+- Enforcing configured HTTP/WebSocket origins.
+- Falling back gracefully in the UI when the API is unavailable.
+
+The React/Electron UI currently supports:
+
+- Loading live dashboard data from the Go API.
+- Displaying job pipeline status, match scores, notifications, worker state, candidate profile, and resume sources.
+- Running as a browser UI through Vite.
+- Running as a desktop shell through Electron.
+
 ## Repository Layout
 
 ```text
@@ -134,9 +150,11 @@ cmd/description-fetcher/          Description fetcher command
 cmd/parser-worker/                Parser / enrichment worker command
 cmd/matching-worker/              Matching worker command
 cmd/notification-worker/          Notification worker command
+cmd/api/                          API service command
 cmd/profile/                      Candidate profile import command
 cmd/resume/                       Resume source import/list command
 configs/candidate-profile.example.json
+configs/api.example.json
 configs/source-producer.example.json
 configs/persistence-dispatcher.example.json
 configs/scheduler.example.json
@@ -145,7 +163,9 @@ configs/parser-worker.example.json
 configs/matching-worker.example.json
 configs/notification-worker.example.json
 examples/resume.example.md
+electron/                         Electron desktop shell
 internal/config/                 Configuration loading
+internal/api/                    HTTP and WebSocket API service
 internal/document/               Local document storage helpers
 internal/events/                 Event envelopes and payloads
 internal/broker/                 JetStream setup helpers
@@ -161,6 +181,7 @@ internal/profile/                Candidate profile model and validation
 internal/producer/               Source producer orchestration
 internal/sources/                Source adapters
 internal/store/                  SQLite migrations and repositories
+src/                             React/TypeScript frontend
 ARCHITECTURE.md                  System architecture
 README.md                        Project overview
 ```
@@ -168,6 +189,7 @@ README.md                        Project overview
 ## Requirements
 
 - Go 1.22 or newer.
+- Node.js 20 or newer.
 - NATS server with JetStream enabled.
 
 Example local NATS server:
@@ -370,6 +392,80 @@ List stored resume sources:
 go run ./cmd/resume list -db hedhuntr.db
 ```
 
+## Running the API Service
+
+Start the Go API service:
+
+```bash
+go run ./cmd/api -config configs/api.example.json
+```
+
+The example config listens on `127.0.0.1:8080`, reads from `hedhuntr.db`, allows the local Vite frontend, and allows `http://zoe.ts.shep.run:5173`.
+It also enables the realtime bridge, which subscribes to NATS subjects such as `jobs.saved`, `jobs.parsed`, `jobs.matched`, and `applications.ready`.
+
+Available endpoints:
+
+```text
+GET /api/health
+GET /api/jobs
+GET /api/pipeline
+GET /api/profile
+GET /api/resume-sources
+GET /api/notifications
+GET /api/workers
+GET /ws
+```
+
+The WebSocket endpoint accepts dashboard clients and sends a subscription acknowledgement. It is intended for browser and Electron clients; both must connect from an allowed origin.
+When the realtime bridge is enabled, the API forwards matching NATS events to subscribed clients with topic names such as `jobs`, `applications`, and `notifications`.
+
+## Running the React UI
+
+Install frontend dependencies:
+
+```bash
+npm install
+```
+
+Run the browser UI:
+
+```bash
+npm run dev
+```
+
+The Vite server is configured to allow `zoe.ts.shep.run`, so the UI can be reached at:
+
+```text
+http://localhost:5173/
+http://zoe.ts.shep.run:5173/
+```
+
+Configure API URLs with environment variables when the API is not on the default local address:
+
+```bash
+VITE_HEDHUNTR_API_URL=http://localhost:8080 npm run dev
+```
+
+The WebSocket URL defaults from `VITE_HEDHUNTR_API_URL` when it is set. It can be overridden explicitly:
+
+```bash
+VITE_HEDHUNTR_WS_URL=ws://localhost:8080/ws npm run dev
+```
+
+## Running the Electron App
+
+Build the web and Electron bundles:
+
+```bash
+npm run build
+```
+
+Run the desktop shell during development:
+
+```bash
+npm run electron:dev
+```
+
 ## Event Output
 
 The source producer publishes `JobDiscovered` events to:
@@ -406,4 +502,4 @@ Events use the shared envelope:
 
 - Add resume tuning worker for `applications.ready`.
 - Add candidate profile API endpoints.
-- Add the React/TypeScript dashboard shell.
+- Add user actions for application review and interview tracking.

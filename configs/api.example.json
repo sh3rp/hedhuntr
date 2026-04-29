@@ -1,0 +1,36 @@
+{
+  "_comment": "Example config for cmd/api. JSON does not support comments, so _comment fields are documentation and are ignored by the Go loader.",
+  "http": {
+    "_comment": "addr is the API listen address. allowed_origins controls browser CORS and WebSocket origin checks.",
+    "addr": "127.0.0.1:8080",
+    "allowed_origins": [
+      "http://localhost:5173",
+      "http://zoe.ts.shep.run:5173"
+    ]
+  },
+  "nats": {
+    "_comment": "NATS is used by the API realtime bridge to subscribe to workflow events and broadcast them over WebSockets.",
+    "url": "nats://127.0.0.1:4222",
+    "stream": "JOBS"
+  },
+  "sqlite": {
+    "_comment": "SQLite database file read by the API.",
+    "path": "hedhuntr.db"
+  },
+  "websocket": {
+    "_comment": "Heartbeat interval for connected browser and Electron clients.",
+    "ping_interval": "25s"
+  },
+  "realtime": {
+    "_comment": "When enabled, the API subscribes to these NATS subjects and forwards matching events to subscribed WebSocket clients.",
+    "enabled": true,
+    "subjects": [
+      "jobs.saved",
+      "jobs.description.fetched",
+      "jobs.parsed",
+      "jobs.matched",
+      "applications.ready",
+      "notifications.>"
+    ]
+  }
+}

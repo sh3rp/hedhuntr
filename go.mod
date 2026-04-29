@@ -2,7 +2,10 @@ module hedhuntr
 
 go 1.22
 
-require github.com/nats-io/nats.go v1.37.0
+require (
+	github.com/gorilla/websocket v1.5.3
+	github.com/nats-io/nats.go v1.37.0
+)
 
 require modernc.org/sqlite v1.29.10
 

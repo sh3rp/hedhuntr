@@ -16,10 +16,11 @@ import {
   Wifi,
   WifiOff
 } from "lucide-react";
-import { useMemo, useState } from "react";
-import { jobs, notifications, pipeline, resumeSources, workers } from "./data/mockData";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { loadDashboardData, type DashboardData } from "./api/client";
+import { jobs as mockJobs, notifications as mockNotifications, pipeline as mockPipeline, resumeSources as mockResumeSources, workers as mockWorkers } from "./data/mockData";
 import { useRealtime } from "./hooks/useRealtime";
-import type { Job, JobStatus, NavItem, ViewKey } from "./types";
+import type { Job, JobStatus, NavItem, RealtimeEvent, ViewKey } from "./types";
 
 const navItems: NavItem[] = [
   { key: "overview", label: "Overview", icon: LayoutDashboard },
@@ -33,6 +34,7 @@ const navItems: NavItem[] = [
 
 const statusLabels: Record<JobStatus, string> = {
   discovered: "Discovered",
+  description_fetched: "Fetched",
   parsed: "Parsed",
   matched: "Matched",
   ready_to_apply: "Ready",
@@ -43,13 +45,47 @@ const statusLabels: Record<JobStatus, string> = {
 
 export function App() {
   const [view, setView] = useState<ViewKey>("overview");
-  const realtime = useRealtime();
+  const [data, setData] = useState<DashboardData>({
+    jobs: mockJobs,
+    pipeline: mockPipeline,
+    profile: null,
+    resumeSources: mockResumeSources,
+    notifications: mockNotifications,
+    workers: mockWorkers
+  });
+  const dataRef = useRef(data);
+  const refreshDashboard = useCallback((event?: RealtimeEvent) => {
+    if (event && event.type !== "event") return;
+    loadDashboardData(dataRef.current).then((loaded) => {
+      dataRef.current = loaded;
+      setData(loaded);
+    });
+  }, []);
+  const realtime = useRealtime(refreshDashboard);
   const isElectron = window.hedhuntr?.runtime === "electron";
 
-  const averageScore = useMemo(() => {
-    const scored = jobs.filter((job) => job.matchScore > 0);
-    return Math.round(scored.reduce((sum, job) => sum + job.matchScore, 0) / scored.length);
+  useEffect(() => {
+    let cancelled = false;
+    loadDashboardData(data).then((loaded) => {
+      if (!cancelled) {
+        dataRef.current = loaded;
+        setData(loaded);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
+
+  const averageScore = useMemo(() => {
+    const scored = data.jobs.filter((job) => job.matchScore > 0);
+    if (scored.length === 0) return 0;
+    return Math.round(scored.reduce((sum, job) => sum + job.matchScore, 0) / scored.length);
+  }, [data.jobs]);
 
   return (
     <div className="app-shell">
@@ -107,23 +143,23 @@ export function App() {
           </div>
         </header>
 
-        {view === "overview" && <Overview averageScore={averageScore} />}
-        {view === "jobs" && <JobsView />}
-        {view === "pipeline" && <PipelineView />}
-        {view === "profile" && <ProfileView />}
-        {view === "resumes" && <ResumesView />}
-        {view === "notifications" && <NotificationsView />}
-        {view === "system" && <SystemView realtimeEvents={realtime.events} />}
+        {view === "overview" && <Overview averageScore={averageScore} data={data} />}
+        {view === "jobs" && <JobsView rows={data.jobs} />}
+        {view === "pipeline" && <PipelineView rows={data.jobs} stages={data.pipeline} />}
+        {view === "profile" && <ProfileView profile={data.profile} />}
+        {view === "resumes" && <ResumesView sources={data.resumeSources} />}
+        {view === "notifications" && <NotificationsView rows={data.notifications} />}
+        {view === "system" && <SystemView realtimeEvents={realtime.events} workers={data.workers} />}
       </main>
     </div>
   );
 }
 
-function Overview({ averageScore }: { averageScore: number }) {
+function Overview({ averageScore, data }: { averageScore: number; data: DashboardData }) {
   return (
     <div className="view-stack">
       <section className="metric-grid" aria-label="Pipeline summary">
-        <Metric icon={BriefcaseBusiness} label="Tracked Jobs" value="42" note="+8 today" />
+        <Metric icon={BriefcaseBusiness} label="Tracked Jobs" value={`${data.jobs.length}`} note="loaded jobs" />
         <Metric icon={Gauge} label="Avg Match" value={`${averageScore}%`} note="parsed jobs" />
         <Metric icon={CheckCircle2} label="Ready" value="4" note="needs review" />
         <Metric icon={Bell} label="Notifications" value="14" note="sent this week" />
@@ -132,20 +168,20 @@ function Overview({ averageScore }: { averageScore: number }) {
       <section className="split-layout">
         <div className="panel">
           <PanelHeader title="Highest Fit Jobs" icon={Search} />
-          <JobTable rows={jobs.slice(0, 3)} compact />
+          <JobTable rows={data.jobs.slice(0, 3)} compact />
         </div>
         <div className="panel">
           <PanelHeader title="Pipeline" icon={Activity} />
-          <PipelineBars />
+          <PipelineBars stages={data.pipeline} />
         </div>
       </section>
     </div>
   );
 }
 
-function JobsView() {
+function JobsView({ rows }: { rows: Job[] }) {
   const [query, setQuery] = useState("");
-  const filtered = jobs.filter((job) =>
+  const filtered = rows.filter((job) =>
     `${job.title} ${job.company} ${job.skills.join(" ")}`.toLowerCase().includes(query.toLowerCase())
   );
 
@@ -168,16 +204,16 @@ function JobsView() {
   );
 }
 
-function PipelineView() {
+function PipelineView({ rows, stages }: { rows: Job[]; stages: typeof mockPipeline }) {
   return (
     <div className="kanban-grid">
-      {pipeline.map((stage) => (
+      {stages.map((stage) => (
         <section className="stage-column" key={stage.status}>
           <div className="stage-header">
             <strong>{stage.label}</strong>
             <span>{stage.count}</span>
           </div>
-          {jobs
+          {rows
             .filter((job) => job.status === stage.status)
             .map((job) => (
               <JobTile job={job} key={job.id} />
@@ -188,7 +224,8 @@ function PipelineView() {
   );
 }
 
-function ProfileView() {
+function ProfileView({ profile }: { profile: unknown }) {
+  const profileRecord = profile as { name?: string; headline?: string; skills?: string[]; preferred_titles?: string[]; remote_preference?: string; min_salary?: number } | null;
   return (
     <div className="view-stack">
       <section className="panel profile-panel">
@@ -196,19 +233,19 @@ function ProfileView() {
         <div className="profile-grid">
           <div>
             <span className="field-label">Name</span>
-            <strong>Example Candidate</strong>
+            <strong>{profileRecord?.name ?? "Example Candidate"}</strong>
           </div>
           <div>
             <span className="field-label">Preference</span>
-            <strong>Remote, $140k minimum</strong>
+            <strong>{profileRecord?.remote_preference ?? "Remote"}{profileRecord?.min_salary ? `, $${Math.round(profileRecord.min_salary / 1000)}k minimum` : ""}</strong>
           </div>
           <div>
             <span className="field-label">Titles</span>
-            <strong>Backend, Platform, Software Engineer</strong>
+            <strong>{profileRecord?.preferred_titles?.join(", ") ?? "Backend, Platform, Software Engineer"}</strong>
           </div>
         </div>
         <div className="skill-row">
-          {["Go", "TypeScript", "React", "NATS", "SQLite", "Docker", "AWS"].map((skill) => (
+          {(profileRecord?.skills ?? ["Go", "TypeScript", "React", "NATS", "SQLite", "Docker", "AWS"]).map((skill) => (
             <span className="skill-chip" key={skill}>
               {skill}
             </span>
@@ -223,18 +260,18 @@ function ProfileView() {
   );
 }
 
-function ResumesView() {
+function ResumesView({ sources }: { sources: typeof mockResumeSources }) {
   return (
     <div className="view-stack">
       <section className="panel">
         <PanelHeader title="Resume Sources" icon={FileText} />
         <div className="list-table">
-          {resumeSources.map((source) => (
+          {sources.map((source) => (
             <div className="list-row" key={source.id}>
               <span>{source.name}</span>
               <span>{source.format}</span>
-              <span>{source.path}</span>
-              <span>{source.updatedAt}</span>
+              <span>{source.path ?? source.documentPath ?? "stored document"}</span>
+              <span>{source.updatedAt ?? source.createdAt ?? ""}</span>
             </div>
           ))}
         </div>
@@ -247,12 +284,12 @@ function ResumesView() {
   );
 }
 
-function NotificationsView() {
+function NotificationsView({ rows }: { rows: typeof mockNotifications }) {
   return (
     <section className="panel">
       <PanelHeader title="Deliveries" icon={Bell} />
       <div className="list-table">
-        {notifications.map((delivery) => (
+        {rows.map((delivery) => (
           <div className="list-row" key={`${delivery.channel}-${delivery.time}`}>
             <span>{delivery.channel}</span>
             <span>{delivery.type}</span>
@@ -266,7 +303,7 @@ function NotificationsView() {
   );
 }
 
-function SystemView({ realtimeEvents }: { realtimeEvents: ReturnType<typeof useRealtime>["events"] }) {
+function SystemView({ realtimeEvents, workers }: { realtimeEvents: ReturnType<typeof useRealtime>["events"]; workers: typeof mockWorkers }) {
   return (
     <div className="split-layout">
       <section className="panel">
@@ -326,11 +363,11 @@ function PanelHeader({ title, icon: Icon }: { title: string; icon: typeof Activi
   );
 }
 
-function PipelineBars() {
-  const max = Math.max(...pipeline.map((stage) => stage.count));
+function PipelineBars({ stages }: { stages: typeof mockPipeline }) {
+  const max = Math.max(1, ...stages.map((stage) => stage.count));
   return (
     <div className="pipeline-bars">
-      {pipeline.map((stage) => (
+      {stages.map((stage) => (
         <div className="bar-row" key={stage.status}>
           <span>{stage.label}</span>
           <div className="bar-track">

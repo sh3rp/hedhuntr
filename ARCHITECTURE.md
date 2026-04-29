@@ -100,7 +100,16 @@ Suggested server-to-client message:
 }
 ```
 
-The API service should bridge internal state changes to WebSocket clients by consuming application events from JetStream or by publishing update notifications after successful state mutations. The WebSocket layer should send view-oriented messages, not database internals.
+The API service bridges internal state changes to WebSocket clients by subscribing to workflow events from NATS and publishing view-oriented messages through the WebSocket hub. The bridge currently tracks the main job/application event subjects:
+
+- `jobs.saved`
+- `jobs.description.fetched`
+- `jobs.parsed`
+- `jobs.matched`
+- `applications.ready`
+- `notifications.>`
+
+The WebSocket layer sends view-oriented messages, not database internals. React and Electron clients should reconnect with backoff, resubscribe after reconnecting, keep a small visible event feed, and refresh affected dashboard state when live events arrive.
 
 ## Discrete Components
 
@@ -142,6 +151,7 @@ Responsibilities:
 - Provide JSON endpoints for jobs, applications, candidate profile, documents, interviews, notifications, and settings.
 - Provide the `/ws` WebSocket endpoint for browser and Electron clients.
 - Broadcast real-time updates derived from application events and user-triggered state changes.
+- Subscribe to NATS workflow subjects and translate event envelopes into WebSocket messages.
 - Enforce validation and user approval gates.
 - Read and write application state through repository interfaces.
 - Publish user-triggered events to JetStream when needed.

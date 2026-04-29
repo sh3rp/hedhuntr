@@ -17,6 +17,7 @@ export type NavItem = {
 
 export type JobStatus =
   | "discovered"
+  | "description_fetched"
   | "parsed"
   | "matched"
   | "ready_to_apply"
@@ -63,8 +64,10 @@ export type ResumeSource = {
   id: number;
   name: string;
   format: string;
-  path: string;
-  updatedAt: string;
+  path?: string;
+  documentPath?: string;
+  updatedAt?: string;
+  createdAt?: string;
 };
 
 export type RealtimeEvent = {

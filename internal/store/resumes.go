@@ -23,15 +23,15 @@ type CreateResumeSourceParams struct {
 }
 
 type ResumeSource struct {
-	ID                 int64
-	CandidateProfileID sql.NullInt64
-	Name               string
-	Format             string
-	DocumentID         int64
-	DocumentPath       string
-	DocumentSHA256     string
-	SizeBytes          int64
-	CreatedAt          string
+	ID                 int64         `json:"id"`
+	CandidateProfileID sql.NullInt64 `json:"candidateProfileId"`
+	Name               string        `json:"name"`
+	Format             string        `json:"format"`
+	DocumentID         int64         `json:"documentId"`
+	DocumentPath       string        `json:"documentPath"`
+	DocumentSHA256     string        `json:"documentSHA256"`
+	SizeBytes          int64         `json:"sizeBytes"`
+	CreatedAt          string        `json:"createdAt"`
 }
 
 func (s *Store) CreateDocument(ctx context.Context, params CreateDocumentParams) (int64, error) {
@@ -84,7 +84,7 @@ ORDER BY rs.created_at DESC, rs.id DESC`)
 	}
 	defer rows.Close()
 
-	var sources []ResumeSource
+	sources := []ResumeSource{}
 	for rows.Next() {
 		var source ResumeSource
 		if err := rows.Scan(
