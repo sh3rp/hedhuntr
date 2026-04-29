@@ -642,6 +642,24 @@ button:disabled {
   margin-top: 16px;
 }
 
+.validation-summary {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid #e2b7ad;
+  border-radius: 8px;
+  color: #7a332e;
+  background: #fff6f4;
+}
+
+.validation-summary ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+}
+
 .profile-quality-panel {
   display: grid;
   gap: 14px;

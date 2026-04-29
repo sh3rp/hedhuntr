@@ -488,6 +488,7 @@ function ProfileView({ profile, quality, onChanged }: { profile: CandidateProfil
   const [titlesText, setTitlesText] = useState(initial.preferred_titles.join(", "));
   const [locationsText, setLocationsText] = useState(initial.preferred_locations.join(", "));
   const [saving, setSaving] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   useEffect(() => {
     const next = profile ?? emptyProfile();
@@ -495,18 +496,25 @@ function ProfileView({ profile, quality, onChanged }: { profile: CandidateProfil
     setSkillsText(next.skills.join(", "));
     setTitlesText(next.preferred_titles.join(", "));
     setLocationsText(next.preferred_locations.join(", "));
+    setValidationErrors([]);
   }, [profile]);
 
   const save = async () => {
+    const payload = {
+      ...draft,
+      skills: csv(skillsText),
+      preferred_titles: csv(titlesText),
+      preferred_locations: csv(locationsText),
+      min_salary: draft.min_salary === null || draft.min_salary === undefined ? null : Number(draft.min_salary)
+    };
+    const errors = validateProfileDraft(payload);
+    setValidationErrors(errors);
+    if (errors.length > 0) {
+      return;
+    }
     setSaving(true);
     try {
-      await saveCandidateProfile({
-        ...draft,
-        skills: csv(skillsText),
-        preferred_titles: csv(titlesText),
-        preferred_locations: csv(locationsText),
-        min_salary: draft.min_salary === null || draft.min_salary === undefined ? null : Number(draft.min_salary)
-      });
+      await saveCandidateProfile(payload);
       onChanged();
     } finally {
       setSaving(false);
@@ -580,6 +588,7 @@ function ProfileView({ profile, quality, onChanged }: { profile: CandidateProfil
             </span>
           ))}
         </div>
+        {validationErrors.length > 0 ? <ValidationSummary errors={validationErrors} /> : null}
         <div className="profile-sections">
           <ProfileSection title="Work History" onAdd={() => setDraft({ ...draft, work_history: [...draft.work_history, emptyWorkHistory()] })}>
             {draft.work_history.length === 0 ? <span className="empty-state">No work history added.</span> : null}
@@ -703,6 +712,19 @@ function ProfileView({ profile, quality, onChanged }: { profile: CandidateProfil
         <PanelHeader title="Source Commands" icon={Database} />
         <code className="command-line">go run ./cmd/profile -db hedhuntr.db -profile configs/candidate-profile.example.json -print</code>
       </section>
+    </div>
+  );
+}
+
+function ValidationSummary({ errors }: { errors: string[] }) {
+  return (
+    <div className="validation-summary" role="alert">
+      <strong>Profile cannot be saved yet</strong>
+      <ul>
+        {errors.map((error) => (
+          <li key={error}>{error}</li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -845,6 +867,58 @@ function emptyLink(): ProfileLink {
     label: "",
     url: ""
   };
+}
+
+function validateProfileDraft(profile: CandidateProfile) {
+  const errors: string[] = [];
+  if (!isPresent(profile.name)) {
+    errors.push("Name is required.");
+  }
+  if (profile.skills.length === 0) {
+    errors.push("At least one skill is required.");
+  }
+  if (profile.min_salary !== null && profile.min_salary !== undefined && profile.min_salary < 0) {
+    errors.push("Minimum salary cannot be negative.");
+  }
+  if (profile.remote_preference && !["remote", "hybrid", "onsite"].includes(profile.remote_preference)) {
+    errors.push("Remote preference must be remote, hybrid, or onsite.");
+  }
+  profile.work_history.forEach((item, index) => {
+    if (!isPresent(item.company)) {
+      errors.push(`Work history ${index + 1}: company is required.`);
+    }
+    if (!isPresent(item.title)) {
+      errors.push(`Work history ${index + 1}: title is required.`);
+    }
+  });
+  profile.projects.forEach((item, index) => {
+    if (!isPresent(item.name)) {
+      errors.push(`Project ${index + 1}: name is required.`);
+    }
+  });
+  profile.education.forEach((item, index) => {
+    if (!isPresent(item.institution)) {
+      errors.push(`Education ${index + 1}: institution is required.`);
+    }
+  });
+  profile.certifications.forEach((item, index) => {
+    if (!isPresent(item.name)) {
+      errors.push(`Certification ${index + 1}: name is required.`);
+    }
+  });
+  profile.links.forEach((item, index) => {
+    if (!isPresent(item.label)) {
+      errors.push(`Link ${index + 1}: label is required.`);
+    }
+    if (!isPresent(item.url)) {
+      errors.push(`Link ${index + 1}: URL is required.`);
+    }
+  });
+  return errors;
+}
+
+function isPresent(value: string | undefined) {
+  return Boolean(value?.trim());
 }
 
 function replaceAt<T>(items: T[], index: number, value: T) {
