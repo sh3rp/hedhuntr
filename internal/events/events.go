@@ -231,10 +231,10 @@ func JobIdempotencyKey(job JobDiscoveredPayload) string {
 	if job.ApplicationURL != "" {
 		return fmt.Sprintf("%s:%s", normalize(job.Source), normalize(job.ApplicationURL))
 	}
-	return fmt.Sprintf(
-		"%s:%s",
-		normalize(job.Source),
-		StableID("job", job.Company, job.Title, job.Location, job.SourceURL),
+	// Fallback to a strict hash of essential fields to avoid collision while minimizing "fuzziness"
+	return fmt.Sprintf("%s:%s", 
+		normalize(job.Source), 
+		StableID("job-fallback", job.Company, job.Title, job.Location, job.SourceURL),
 	)
 }
 

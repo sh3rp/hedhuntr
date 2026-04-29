@@ -28,7 +28,7 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	db.SetMaxOpenConns(1)
+	db.SetMaxOpenConns(10)
 
 	if err := Migrate(ctx, db); err != nil {
 		db.Close()
@@ -53,7 +53,10 @@ func (s *Store) SaveDiscoveredJob(ctx context.Context, subject string, envelope 
 	err = tx.QueryRowContext(ctx, "SELECT id FROM job_events WHERE event_id = ?", envelope.EventID).Scan(&existingEventID)
 	if err == nil {
 		jobID, findErr := findJobIDByIdempotencyKey(ctx, tx, envelope.IdempotencyKey)
-		return SaveJobResult{JobID: jobID, Created: false}, findErr
+		if findErr != nil && findErr != sql.ErrNoRows {
+			return SaveJobResult{}, findErr
+		}
+		return SaveJobResult{JobID: jobID, Created: false}, nil
 	}
 	if err != sql.ErrNoRows {
 		return SaveJobResult{}, fmt.Errorf("check job event: %w", err)
@@ -95,6 +98,7 @@ INSERT INTO job_events(
 	if err != nil {
 		return SaveJobResult{}, err
 	}
+
 	if err := upsertDescription(ctx, tx, jobID, envelope.Payload); err != nil {
 		return SaveJobResult{}, err
 	}
