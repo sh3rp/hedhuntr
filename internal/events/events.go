@@ -10,8 +10,13 @@ import (
 )
 
 const (
-	SubjectJobsDiscovered = "jobs.discovered"
-	EventJobDiscovered    = "JobDiscovered"
+	SubjectJobsDiscovered                = "jobs.discovered"
+	SubjectJobsSaved                     = "jobs.saved"
+	SubjectJobsDescriptionFetchRequested = "jobs.description.fetch.requested"
+
+	EventJobDiscovered                = "JobDiscovered"
+	EventJobSaved                     = "JobSaved"
+	EventJobDescriptionFetchRequested = "JobDescriptionFetchRequested"
 )
 
 type Envelope[T any] struct {
@@ -42,6 +47,26 @@ type JobDiscoveredPayload struct {
 	Raw            json.RawMessage `json:"raw,omitempty"`
 }
 
+type JobSavedPayload struct {
+	JobID          int64     `json:"job_id"`
+	Source         string    `json:"source"`
+	ExternalID     string    `json:"external_id,omitempty"`
+	Title          string    `json:"title"`
+	Company        string    `json:"company"`
+	SourceURL      string    `json:"source_url"`
+	ApplicationURL string    `json:"application_url,omitempty"`
+	Created        bool      `json:"created"`
+	SavedAt        time.Time `json:"saved_at"`
+}
+
+type JobDescriptionFetchRequestedPayload struct {
+	JobID          int64     `json:"job_id"`
+	Source         string    `json:"source"`
+	SourceURL      string    `json:"source_url"`
+	ApplicationURL string    `json:"application_url,omitempty"`
+	RequestedAt    time.Time `json:"requested_at"`
+}
+
 func NewJobDiscovered(sourceName string, payload JobDiscoveredPayload) Envelope[JobDiscoveredPayload] {
 	now := time.Now().UTC()
 	idempotencyKey := JobIdempotencyKey(payload)
@@ -52,6 +77,36 @@ func NewJobDiscovered(sourceName string, payload JobDiscoveredPayload) Envelope[
 		OccurredAt:     now,
 		Source:         sourceName,
 		CorrelationID:  StableID("correlation", sourceName, idempotencyKey),
+		IdempotencyKey: idempotencyKey,
+		Payload:        payload,
+	}
+}
+
+func NewJobSaved(sourceName, correlationID string, payload JobSavedPayload) Envelope[JobSavedPayload] {
+	now := time.Now().UTC()
+	idempotencyKey := StableID("job-saved", sourceName, fmt.Sprintf("%d", payload.JobID), fmt.Sprintf("%t", payload.Created))
+	return Envelope[JobSavedPayload]{
+		EventID:        StableID("event", EventJobSaved, sourceName, idempotencyKey, now.Format(time.RFC3339Nano)),
+		EventType:      EventJobSaved,
+		EventVersion:   1,
+		OccurredAt:     now,
+		Source:         sourceName,
+		CorrelationID:  correlationID,
+		IdempotencyKey: idempotencyKey,
+		Payload:        payload,
+	}
+}
+
+func NewJobDescriptionFetchRequested(sourceName, correlationID string, payload JobDescriptionFetchRequestedPayload) Envelope[JobDescriptionFetchRequestedPayload] {
+	now := time.Now().UTC()
+	idempotencyKey := StableID("description-fetch-requested", sourceName, fmt.Sprintf("%d", payload.JobID))
+	return Envelope[JobDescriptionFetchRequestedPayload]{
+		EventID:        StableID("event", EventJobDescriptionFetchRequested, sourceName, idempotencyKey, now.Format(time.RFC3339Nano)),
+		EventType:      EventJobDescriptionFetchRequested,
+		EventVersion:   1,
+		OccurredAt:     now,
+		Source:         sourceName,
+		CorrelationID:  correlationID,
 		IdempotencyKey: idempotencyKey,
 		Payload:        payload,
 	}

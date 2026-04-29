@@ -41,7 +41,7 @@ Primary components:
 
 The initial implementation starts with the Source Producer Service.
 
-It currently supports:
+The Source Producer currently supports:
 
 - Loading producer configuration from JSON.
 - Fetching jobs from a `static` source for local testing.
@@ -52,15 +52,41 @@ It currently supports:
 - Ensuring the `JOBS` stream exists for `jobs.>`.
 - Publishing events to `jobs.discovered`.
 
+The Persistence Dispatcher currently supports:
+
+- Creating and migrating the SQLite database.
+- Consuming `jobs.discovered` from JetStream with a durable pull consumer.
+- Deduplicating by event ID, idempotency key, source/external ID, and canonical URL.
+- Persisting jobs, descriptions, event audit records, and FTS search rows.
+- Publishing `jobs.saved`.
+- Publishing `jobs.description.fetch.requested` when the discovered job has no description text.
+
+The Scheduler Service currently supports:
+
+- Loading scheduled source definitions from JSON.
+- Referencing the source producer config for adapter settings.
+- Creating and updating `job_sources`, `job_source_runs`, and `source_checkpoints` schema.
+- Calculating due hourly/daily source runs from SQLite state.
+- Running due sources through the Source Producer Service.
+- Recording success/failure, duration, jobs seen, and events published.
+- Running continuously or once with `-run-once`.
+
 ## Repository Layout
 
 ```text
 cmd/source-producer/             Source producer command
+cmd/persistence-dispatcher/       Persistence dispatcher command
+cmd/scheduler/                    Scheduler command
 configs/source-producer.example.json
+configs/persistence-dispatcher.example.json
+configs/scheduler.example.json
 internal/config/                 Configuration loading
 internal/events/                 Event envelopes and payloads
+internal/broker/                 JetStream setup helpers
+internal/dispatcher/             Persistence dispatcher orchestration
 internal/producer/               Source producer orchestration
 internal/sources/                Source adapters
+internal/store/                  SQLite migrations and repositories
 ARCHITECTURE.md                  System architecture
 README.md                        Project overview
 ```
@@ -97,6 +123,42 @@ go run ./cmd/source-producer -config configs/source-producer.example.json
 ```
 
 The example config includes an enabled `static` source and a disabled Greenhouse source. To use Greenhouse, update `configs/source-producer.example.json` with a real Greenhouse `board_token` and set that source to `enabled: true`.
+
+Run the persistence dispatcher continuously:
+
+```bash
+go run ./cmd/persistence-dispatcher -config configs/persistence-dispatcher.example.json
+```
+
+Process one pending discovery event and exit:
+
+```bash
+go run ./cmd/persistence-dispatcher -config configs/persistence-dispatcher.example.json -max-messages 1
+```
+
+Local smoke test flow:
+
+```bash
+nats-server -js
+go run ./cmd/source-producer -config configs/source-producer.example.json
+go run ./cmd/persistence-dispatcher -config configs/persistence-dispatcher.example.json -max-messages 1
+```
+
+## Running the Scheduler
+
+Run due scheduled sources once and exit:
+
+```bash
+go run ./cmd/scheduler -config configs/scheduler.example.json -run-once
+```
+
+Run the scheduler continuously:
+
+```bash
+go run ./cmd/scheduler -config configs/scheduler.example.json
+```
+
+The scheduler uses `configs/scheduler.example.json` for schedule metadata and references `configs/source-producer.example.json` for source adapter settings.
 
 ## Event Output
 

@@ -3,12 +3,12 @@ package producer
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 
 	"github.com/nats-io/nats.go"
 
+	"hedhuntr/internal/broker"
 	"hedhuntr/internal/config"
 	"hedhuntr/internal/events"
 	"hedhuntr/internal/sources"
@@ -43,7 +43,7 @@ func NewService(cfg config.SourceProducer, logger *slog.Logger) (*Service, error
 		nc.Close()
 		return nil, fmt.Errorf("initialize jetstream: %w", err)
 	}
-	if err := ensureStream(js, cfg.NATS.Stream); err != nil {
+	if err := broker.EnsureJobsStream(js, cfg.NATS.Stream); err != nil {
 		nc.Close()
 		return nil, err
 	}
@@ -128,25 +128,5 @@ func (s *Service) publish(ctx context.Context, envelope events.Envelope[events.J
 		"sequence", ack.Sequence,
 		"idempotency_key", envelope.IdempotencyKey,
 	)
-	return nil
-}
-
-func ensureStream(js nats.JetStreamContext, streamName string) error {
-	_, err := js.StreamInfo(streamName)
-	if err == nil {
-		return nil
-	}
-	if !errors.Is(err, nats.ErrStreamNotFound) {
-		return fmt.Errorf("inspect jetstream stream %q: %w", streamName, err)
-	}
-
-	_, err = js.AddStream(&nats.StreamConfig{
-		Name:     streamName,
-		Subjects: []string{"jobs.>"},
-		Storage:  nats.FileStorage,
-	})
-	if err != nil {
-		return fmt.Errorf("create jetstream stream %q: %w", streamName, err)
-	}
 	return nil
 }

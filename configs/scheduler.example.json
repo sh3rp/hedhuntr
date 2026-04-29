@@ -1,0 +1,23 @@
+{
+  "sqlite": {
+    "path": "hedhuntr.db"
+  },
+  "source_producer_config": "configs/source-producer.example.json",
+  "poll_interval": "1m",
+  "sources": [
+    {
+      "name": "example-static",
+      "enabled": true,
+      "schedule": "hourly",
+      "interval": "1h",
+      "timeout": "2m"
+    },
+    {
+      "name": "example-greenhouse",
+      "enabled": false,
+      "schedule": "daily",
+      "interval": "24h",
+      "timeout": "2m"
+    }
+  ]
+}
