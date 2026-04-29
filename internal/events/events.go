@@ -13,10 +13,14 @@ const (
 	SubjectJobsDiscovered                = "jobs.discovered"
 	SubjectJobsSaved                     = "jobs.saved"
 	SubjectJobsDescriptionFetchRequested = "jobs.description.fetch.requested"
+	SubjectJobsDescriptionFetched        = "jobs.description.fetched"
+	SubjectJobsParsed                    = "jobs.parsed"
 
 	EventJobDiscovered                = "JobDiscovered"
 	EventJobSaved                     = "JobSaved"
 	EventJobDescriptionFetchRequested = "JobDescriptionFetchRequested"
+	EventJobDescriptionFetched        = "JobDescriptionFetched"
+	EventJobParsed                    = "JobParsed"
 )
 
 type Envelope[T any] struct {
@@ -67,6 +71,33 @@ type JobDescriptionFetchRequestedPayload struct {
 	RequestedAt    time.Time `json:"requested_at"`
 }
 
+type JobDescriptionFetchedPayload struct {
+	JobID          int64     `json:"job_id"`
+	Source         string    `json:"source"`
+	SourceURL      string    `json:"source_url"`
+	ApplicationURL string    `json:"application_url,omitempty"`
+	FetchedURL     string    `json:"fetched_url"`
+	RawText        string    `json:"raw_text"`
+	RawHTML        string    `json:"raw_html,omitempty"`
+	FetchedAt      time.Time `json:"fetched_at"`
+}
+
+type JobParsedPayload struct {
+	JobID            int64     `json:"job_id"`
+	Source           string    `json:"source"`
+	Skills           []string  `json:"skills"`
+	Requirements     []string  `json:"requirements"`
+	Responsibilities []string  `json:"responsibilities"`
+	SalaryMin        *int      `json:"salary_min,omitempty"`
+	SalaryMax        *int      `json:"salary_max,omitempty"`
+	SalaryCurrency   string    `json:"salary_currency,omitempty"`
+	SalaryPeriod     string    `json:"salary_period,omitempty"`
+	RemotePolicy     string    `json:"remote_policy,omitempty"`
+	Seniority        string    `json:"seniority,omitempty"`
+	EmploymentType   string    `json:"employment_type,omitempty"`
+	ParsedAt         time.Time `json:"parsed_at"`
+}
+
 func NewJobDiscovered(sourceName string, payload JobDiscoveredPayload) Envelope[JobDiscoveredPayload] {
 	now := time.Now().UTC()
 	idempotencyKey := JobIdempotencyKey(payload)
@@ -103,6 +134,36 @@ func NewJobDescriptionFetchRequested(sourceName, correlationID string, payload J
 	return Envelope[JobDescriptionFetchRequestedPayload]{
 		EventID:        StableID("event", EventJobDescriptionFetchRequested, sourceName, idempotencyKey, now.Format(time.RFC3339Nano)),
 		EventType:      EventJobDescriptionFetchRequested,
+		EventVersion:   1,
+		OccurredAt:     now,
+		Source:         sourceName,
+		CorrelationID:  correlationID,
+		IdempotencyKey: idempotencyKey,
+		Payload:        payload,
+	}
+}
+
+func NewJobDescriptionFetched(sourceName, correlationID string, payload JobDescriptionFetchedPayload) Envelope[JobDescriptionFetchedPayload] {
+	now := time.Now().UTC()
+	idempotencyKey := StableID("description-fetched", sourceName, fmt.Sprintf("%d", payload.JobID), payload.FetchedURL)
+	return Envelope[JobDescriptionFetchedPayload]{
+		EventID:        StableID("event", EventJobDescriptionFetched, sourceName, idempotencyKey, now.Format(time.RFC3339Nano)),
+		EventType:      EventJobDescriptionFetched,
+		EventVersion:   1,
+		OccurredAt:     now,
+		Source:         sourceName,
+		CorrelationID:  correlationID,
+		IdempotencyKey: idempotencyKey,
+		Payload:        payload,
+	}
+}
+
+func NewJobParsed(sourceName, correlationID string, payload JobParsedPayload) Envelope[JobParsedPayload] {
+	now := time.Now().UTC()
+	idempotencyKey := StableID("job-parsed", sourceName, fmt.Sprintf("%d", payload.JobID))
+	return Envelope[JobParsedPayload]{
+		EventID:        StableID("event", EventJobParsed, sourceName, idempotencyKey, now.Format(time.RFC3339Nano)),
+		EventType:      EventJobParsed,
 		EventVersion:   1,
 		OccurredAt:     now,
 		Source:         sourceName,

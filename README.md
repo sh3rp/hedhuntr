@@ -71,19 +71,46 @@ The Scheduler Service currently supports:
 - Recording success/failure, duration, jobs seen, and events published.
 - Running continuously or once with `-run-once`.
 
+The Description Fetcher Worker currently supports:
+
+- Consuming `jobs.description.fetch.requested` from JetStream with a durable pull consumer.
+- Loading the target job from SQLite.
+- Fetching the application URL or source URL over HTTP.
+- Extracting readable text from HTML job pages.
+- Persisting fetched text and optional raw HTML.
+- Updating job status to `description_fetched`.
+- Publishing `jobs.description.fetched`.
+
+The Parser / Enrichment Worker currently supports:
+
+- Consuming `jobs.description.fetched` from JetStream with a durable pull consumer.
+- Extracting skills with a deterministic local ruleset.
+- Extracting requirements and responsibilities sections.
+- Extracting salary hints, remote policy, seniority, and employment type.
+- Persisting parsed metadata to `job_requirements` and `job_descriptions`.
+- Updating job status to `parsed`.
+- Publishing `jobs.parsed`.
+
 ## Repository Layout
 
 ```text
 cmd/source-producer/             Source producer command
 cmd/persistence-dispatcher/       Persistence dispatcher command
 cmd/scheduler/                    Scheduler command
+cmd/description-fetcher/          Description fetcher command
+cmd/parser-worker/                Parser / enrichment worker command
 configs/source-producer.example.json
 configs/persistence-dispatcher.example.json
 configs/scheduler.example.json
+configs/description-fetcher.example.json
+configs/parser-worker.example.json
 internal/config/                 Configuration loading
 internal/events/                 Event envelopes and payloads
 internal/broker/                 JetStream setup helpers
+internal/descriptionfetcher/      Description fetcher orchestration and text extraction
 internal/dispatcher/             Persistence dispatcher orchestration
+internal/parser/                 Deterministic job description parser
+internal/parserworker/           Parser worker orchestration
 internal/producer/               Source producer orchestration
 internal/sources/                Source adapters
 internal/store/                  SQLite migrations and repositories
@@ -160,6 +187,53 @@ go run ./cmd/scheduler -config configs/scheduler.example.json
 
 The scheduler uses `configs/scheduler.example.json` for schedule metadata and references `configs/source-producer.example.json` for source adapter settings.
 
+## Running the Description Fetcher
+
+Run the description fetcher continuously:
+
+```bash
+go run ./cmd/description-fetcher -config configs/description-fetcher.example.json
+```
+
+Process one pending description fetch request and exit:
+
+```bash
+go run ./cmd/description-fetcher -config configs/description-fetcher.example.json -max-messages 1
+```
+
+Extended local smoke test flow:
+
+```bash
+nats-server -js
+go run ./cmd/source-producer -config configs/source-producer.example.json
+go run ./cmd/persistence-dispatcher -config configs/persistence-dispatcher.example.json -max-messages 1
+go run ./cmd/description-fetcher -config configs/description-fetcher.example.json -max-messages 1
+```
+
+## Running the Parser Worker
+
+Run the parser worker continuously:
+
+```bash
+go run ./cmd/parser-worker -config configs/parser-worker.example.json
+```
+
+Process one pending fetched-description event and exit:
+
+```bash
+go run ./cmd/parser-worker -config configs/parser-worker.example.json -max-messages 1
+```
+
+Parser worker smoke test flow:
+
+```bash
+nats-server -js
+go run ./cmd/source-producer -config configs/source-producer.example.json
+go run ./cmd/persistence-dispatcher -config configs/persistence-dispatcher.example.json -max-messages 1
+go run ./cmd/description-fetcher -config configs/description-fetcher.example.json -max-messages 1
+go run ./cmd/parser-worker -config configs/parser-worker.example.json -max-messages 1
+```
+
 ## Event Output
 
 The source producer publishes `JobDiscovered` events to:
@@ -194,9 +268,7 @@ Events use the shared envelope:
 
 ## Next Implementation Steps
 
-- Add the SQLite schema and migration runner.
-- Implement the Persistence Dispatcher for `jobs.discovered`.
-- Add scheduler support for hourly and daily source pulls.
-- Add source checkpoints and run history.
-- Add the Description Fetcher Worker.
+- Add candidate profile storage.
+- Add job matching and scoring.
+- Add the Matching / Resume Worker for `jobs.parsed`.
 - Add the React/TypeScript dashboard shell.

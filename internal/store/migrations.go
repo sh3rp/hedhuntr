@@ -136,6 +136,36 @@ CREATE TABLE IF NOT EXISTS source_checkpoints (
 );
 `,
 	},
+	{
+		Version: 3,
+		Name:    "create_parser_schema",
+		SQL: `
+ALTER TABLE job_descriptions ADD COLUMN parsed_metadata_json TEXT NOT NULL DEFAULT '{}';
+ALTER TABLE job_descriptions ADD COLUMN parsed_at TEXT;
+
+CREATE TABLE IF NOT EXISTS job_requirements (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	job_id INTEGER NOT NULL UNIQUE,
+	skills_json TEXT NOT NULL DEFAULT '[]',
+	requirements_json TEXT NOT NULL DEFAULT '[]',
+	responsibilities_json TEXT NOT NULL DEFAULT '[]',
+	salary_min INTEGER,
+	salary_max INTEGER,
+	salary_currency TEXT,
+	salary_period TEXT,
+	remote_policy TEXT,
+	seniority TEXT,
+	employment_type TEXT,
+	created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	FOREIGN KEY(job_id) REFERENCES jobs(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_job_requirements_remote_policy ON job_requirements(remote_policy);
+CREATE INDEX IF NOT EXISTS idx_job_requirements_seniority ON job_requirements(seniority);
+CREATE INDEX IF NOT EXISTS idx_job_requirements_employment_type ON job_requirements(employment_type);
+`,
+	},
 }
 
 func Migrate(ctx context.Context, db *sql.DB) error {
