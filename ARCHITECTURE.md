@@ -17,7 +17,7 @@ The application should keep human review points before any job application is su
 - Persist normalized jobs and descriptions to SQLite.
 - Fetch and parse full job descriptions.
 - Match jobs against a candidate profile.
-- Generate tailored resume and cover letter drafts for review.
+- Generate tailored resume, cover letter, and application answer drafts for review.
 - Notify configured channels when relevant jobs or workflow events occur.
 - Assist with job applications without bypassing site protections.
 - Track the full application and interview lifecycle.
@@ -127,7 +127,7 @@ Responsibilities:
 - Connect to the Go API WebSocket endpoint for real-time updates.
 - Import and export candidate profile JSON from the profile editor.
 - Provide human approval flows for generated resumes, cover letters, application answers, and final submissions.
-- Render a review queue for generated resume and cover letter drafts.
+- Render a review queue for generated resume, cover letter, and application answer drafts.
 - Render generated materials as preview, raw Markdown, structural checks, extracted sections, target skills, links, and generator review notes.
 - Allow approve, reject, needs-changes, and regenerate-review actions before automation can use generated materials.
 - Show source run status, event processing state, notification results, and automation failures.
@@ -156,7 +156,7 @@ Responsibilities:
 - Provide JSON endpoints for jobs, applications, candidate profile, documents, interviews, notifications, and settings.
 - Validate and persist candidate profile edits for matching and resume generation.
 - Report candidate profile completeness and quality checks.
-- Provide review queue endpoints for generated resume and cover letter materials.
+- Provide review queue endpoints for generated resume, cover letter, and application answer materials.
 - Record material review decisions such as approved, rejected, needs changes, and regeneration requested.
 - Create automation handoff packets only after required materials are approved.
 - Expose automation run state, logs, and manual status controls.
@@ -355,7 +355,7 @@ Responsibilities:
 
 - Consume `applications.ready`.
 - Load the ready application, parsed job context, candidate profile, and base resume source.
-- Generate tailored resume and cover letter drafts for review.
+- Generate tailored resume, cover letter, and application answer drafts for review.
 - Rank stored work history, projects, and certifications against job skills.
 - Render relevant technologies, education, certifications, and links without inventing new claims.
 - Store generated document files and SQLite metadata.
@@ -409,7 +409,7 @@ Responsibilities:
 - Load approved application packets.
 - In packet-only mode, record the packet and immediately stop at `review_required`.
 - Coordinate Playwright-assisted form filling for supported sites.
-- Attach approved resume and cover letter documents.
+- Attach approved resume, cover letter, and application answer documents.
 - Pause for user review before final submission.
 - Store automation logs, outcomes, and confirmation details when available.
 - Emit application lifecycle events.
@@ -460,7 +460,7 @@ Type: Local filesystem initially, object storage later if needed.
 
 Responsibilities:
 
-- Store generated resumes, cover letters, source resumes, and application packet artifacts.
+- Store generated resumes, cover letters, application answers, source resumes, and application packet artifacts.
 - Preserve the exact files used for each application.
 
 Owns:
@@ -517,7 +517,7 @@ Core subjects:
 | `jobs.parsed` | Description metadata was extracted. |
 | `jobs.matched` | Job was scored against the candidate profile. |
 | `applications.ready` | An application packet is ready for user review. |
-| `applications.materials.drafted` | Draft resume and cover letter materials were generated for human review. |
+| `applications.materials.drafted` | Draft resume, cover letter, and application answer materials were generated for human review. |
 | `applications.automation.approved` | Human review approved selected materials for automation handoff. |
 | `automation.run.requested` | A worker may begin assisted filling for an approved packet. |
 | `automation.run.started` | Automation worker accepted and started a requested run. |
@@ -628,7 +628,7 @@ Suggested job and application statuses:
 5. Dispatcher emits `jobs.saved` and `jobs.description.fetch.requested`.
 6. Description fetcher retrieves full posting content and emits `jobs.description.fetched`.
 7. Parser extracts structured metadata and emits `jobs.parsed`.
-8. Matching worker scores the job and optionally creates resume and cover letter drafts.
+8. Matching worker scores the job and optionally creates resume, cover letter, and application answer drafts.
 9. Notification dispatcher sends relevant events to Discord, Slack, email, or in-app channels.
 10. User reviews the job, tuned resume, and application packet.
 11. Automation worker assists with form filling where supported.
@@ -672,7 +672,7 @@ The first version should include:
 - Do not bypass anti-bot or access controls.
 - Require user approval before submitting applications.
 - Log every automation action.
-- Preserve the exact resume and cover letter used for each application.
+- Preserve the exact resume, cover letter, and application answers used for each application.
 - Store source URLs and application URLs for auditability.
 - Make event consumers idempotent.
 - Use dead-letter queues for repeated processing failures.

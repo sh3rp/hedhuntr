@@ -236,6 +236,38 @@ func (s *Service) processMessage(ctx context.Context, msg *nats.Msg) error {
 		return err
 	}
 
+	answersDoc, err := document.StoreContent(
+		s.cfg.Documents.RootDir,
+		"application-answers",
+		fmt.Sprintf("%s-%s-application-answers.md", app.Company, app.JobTitle),
+		[]byte(output.AnswersMarkdown),
+	)
+	if err != nil {
+		return fmt.Errorf("store application answers: %w", err)
+	}
+	answersDocID, err := s.store.CreateDocument(ctx, store.CreateDocumentParams{
+		Kind:      "application_answers",
+		Format:    "markdown",
+		Path:      answersDoc.Path,
+		SHA256:    answersDoc.SHA256,
+		SizeBytes: answersDoc.SizeBytes,
+	})
+	if err != nil {
+		return err
+	}
+	if _, err := s.store.CreateApplicationMaterial(ctx, store.CreateApplicationMaterialParams{
+		ApplicationID:      app.ApplicationID,
+		JobID:              app.JobID,
+		CandidateProfileID: app.CandidateProfileID,
+		Kind:               "application_answers",
+		DocumentID:         answersDocID,
+		Status:             "draft",
+		Notes:              "Human approval required. Confirm all application answers before use.",
+		SourceEventID:      envelope.EventID,
+	}); err != nil {
+		return err
+	}
+
 	draftedAt := time.Now().UTC()
 	drafted := events.NewApplicationMaterialsDrafted(envelope.Source, envelope.CorrelationID, events.ApplicationMaterialsDraftedPayload{
 		JobID:              app.JobID,
@@ -260,6 +292,7 @@ func (s *Service) processMessage(ctx context.Context, msg *nats.Msg) error {
 		"resume_version_id", resumeVersionID,
 		"resume_path", filepath.Clean(resumeDoc.Path),
 		"cover_letter_path", filepath.Clean(coverLetterDoc.Path),
+		"answers_path", filepath.Clean(answersDoc.Path),
 	)
 	return nil
 }

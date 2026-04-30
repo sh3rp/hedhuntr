@@ -45,6 +45,12 @@ func TestTuneUsesOnlyStoredProfileData(t *testing.T) {
 	if !strings.Contains(output.CoverLetterMarkdown, "Dear Acme hiring team") {
 		t.Fatalf("cover letter missing company:\n%s", output.CoverLetterMarkdown)
 	}
+	if !strings.Contains(output.AnswersMarkdown, "## Work authorization") {
+		t.Fatalf("answers missing work authorization review prompt:\n%s", output.AnswersMarkdown)
+	}
+	if strings.Contains(output.AnswersMarkdown, "authorized to work") {
+		t.Fatalf("answers introduced unstored work authorization claim:\n%s", output.AnswersMarkdown)
+	}
 }
 
 func TestTuneRendersAndRanksStructuredProfileSections(t *testing.T) {

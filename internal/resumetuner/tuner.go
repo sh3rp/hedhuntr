@@ -21,6 +21,7 @@ type Input struct {
 type Output struct {
 	ResumeMarkdown      string
 	CoverLetterMarkdown string
+	AnswersMarkdown     string
 	Notes               []string
 }
 
@@ -197,9 +198,54 @@ func Tune(input Input) Output {
 	writeLine(&letter, "")
 	writeLine(&letter, "- This is a draft for human review. Confirm company details, tone, and any role-specific claims before use.")
 
+	var answers bytes.Buffer
+	writeLine(&answers, "# Application Answers Draft")
+	writeLine(&answers, "")
+	writeLine(&answers, "## Why are you interested in this role?")
+	writeLine(&answers, "")
+	writeLine(&answers, "I am interested in the %s role at %s because it aligns with my stored background in %s.", input.Application.JobTitle, input.Application.Company, sentenceList(prioritySkills, "the areas represented in my candidate profile"))
+	writeLine(&answers, "")
+	writeLine(&answers, "## What relevant experience do you bring?")
+	writeLine(&answers, "")
+	if len(highlights) > 0 {
+		for _, item := range highlights[:min(len(highlights), 3)] {
+			writeLine(&answers, "- %s", item)
+		}
+	} else {
+		writeLine(&answers, "- Review the candidate profile and add a truthful, role-specific example before submitting.")
+	}
+	writeLine(&answers, "")
+	writeLine(&answers, "## What skills match this job?")
+	writeLine(&answers, "")
+	for _, skill := range prioritySkills {
+		writeLine(&answers, "- %s", skill)
+	}
+	if len(prioritySkills) == 0 {
+		writeLine(&answers, "- Review stored skills before answering.")
+	}
+	writeLine(&answers, "")
+	writeLine(&answers, "## Work authorization")
+	writeLine(&answers, "")
+	writeLine(&answers, "Review and fill this answer manually. The stored candidate profile does not currently include work authorization facts.")
+	writeLine(&answers, "")
+	writeLine(&answers, "## Salary expectations")
+	writeLine(&answers, "")
+	if input.Profile.MinSalary != nil {
+		writeLine(&answers, "Minimum salary from stored profile: %d.", *input.Profile.MinSalary)
+	} else {
+		writeLine(&answers, "Review and fill this answer manually. The stored candidate profile does not currently include a salary floor.")
+	}
+	writeLine(&answers, "")
+	writeLine(&answers, "## Review Notes")
+	writeLine(&answers, "")
+	writeLine(&answers, "- These answers are drafts for human review.")
+	writeLine(&answers, "- Do not submit work authorization, sponsorship, clearance, demographic, or legal answers without direct confirmation.")
+	writeLine(&answers, "- Do not add claims that are not present in the stored candidate profile or approved resume source.")
+
 	return Output{
 		ResumeMarkdown:      strings.TrimSpace(resume.String()) + "\n",
 		CoverLetterMarkdown: strings.TrimSpace(letter.String()) + "\n",
+		AnswersMarkdown:     strings.TrimSpace(answers.String()) + "\n",
 		Notes: []string{
 			"Generated deterministic drafts from stored candidate data.",
 			"Human approval is required before application submission.",

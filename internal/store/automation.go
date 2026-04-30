@@ -60,8 +60,9 @@ type AutomationPacketJob struct {
 }
 
 type AutomationPacketMaterials struct {
-	Resume      APIReviewMaterial  `json:"resume"`
-	CoverLetter *APIReviewMaterial `json:"coverLetter,omitempty"`
+	Resume      APIReviewMaterial   `json:"resume"`
+	CoverLetter *APIReviewMaterial  `json:"coverLetter,omitempty"`
+	Answers     []APIReviewMaterial `json:"answers"`
 }
 
 type AutomationHandoffResult struct {
@@ -447,6 +448,7 @@ LIMIT 1`, applicationID).Scan(
 		return AutomationPacket{}, err
 	}
 	packet.Materials.Resume = resume
+	packet.Materials.Answers = []APIReviewMaterial{}
 	if coverID.Valid {
 		cover, err := s.APIReviewMaterial(ctx, coverID.Int64)
 		if err != nil {
@@ -454,7 +456,37 @@ LIMIT 1`, applicationID).Scan(
 		}
 		packet.Materials.CoverLetter = &cover
 	}
+	answers, err := s.approvedApplicationAnswerMaterials(ctx, applicationID)
+	if err != nil {
+		return AutomationPacket{}, err
+	}
+	packet.Materials.Answers = answers
 	return packet, nil
+}
+
+func (s *Store) approvedApplicationAnswerMaterials(ctx context.Context, applicationID int64) ([]APIReviewMaterial, error) {
+	rows, err := s.db.QueryContext(ctx, `
+SELECT id
+FROM application_materials
+WHERE application_id = ? AND kind = 'application_answers' AND status = 'approved'
+ORDER BY id`, applicationID)
+	if err != nil {
+		return nil, fmt.Errorf("query approved application answers: %w", err)
+	}
+	defer rows.Close()
+	answers := []APIReviewMaterial{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		material, err := s.APIReviewMaterial(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		answers = append(answers, material)
+	}
+	return answers, rows.Err()
 }
 
 type applicationAutomationRow struct {

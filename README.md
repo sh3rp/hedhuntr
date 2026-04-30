@@ -11,7 +11,7 @@ The backend is written in Go. The frontend is React and TypeScript with an Elect
 - Persist normalized jobs and job descriptions to SQLite.
 - Parse job descriptions into structured requirements and skills.
 - Match jobs against a candidate profile.
-- Generate truthful resume and cover letter drafts for review.
+- Generate truthful resume, cover letter, and application answer drafts for review.
 - Notify configured channels such as Discord, Slack, and email.
 - Assist with applications while keeping a human approval step before submission.
 - Track applications, interview stages, outcomes, and follow-ups.
@@ -128,7 +128,7 @@ The Resume Tuning Worker currently supports:
 
 - Consuming `applications.ready` from JetStream with a durable pull consumer.
 - Loading the ready application, parsed job context, candidate profile, and base resume source.
-- Generating deterministic Markdown resume and cover letter drafts from stored candidate data.
+- Generating deterministic Markdown resume, cover letter, and application answer drafts from stored candidate data.
 - Ranking stored work history, projects, and certifications against job skills.
 - Rendering relevant technologies, education, certifications, and links into tailored resume drafts.
 - Persisting generated documents under local document storage.
@@ -169,7 +169,7 @@ The React/Electron UI currently supports:
 - Editing candidate profile name, headline, skills, preferences, salary floor, work history, projects, education, certifications, and links.
 - Importing and exporting candidate profile JSON from the profile editor.
 - Showing candidate profile completeness score and missing profile inputs.
-- Reviewing generated resume and cover letter drafts with rendered preview, raw Markdown, structural checks, section summaries, keyword chips, links, and generator review notes.
+- Reviewing generated resume, cover letter, and application answer drafts with rendered preview, raw Markdown, structural checks, section summaries, keyword chips, links, and generator review notes.
 - Approving, rejecting, requesting changes, or requesting regeneration for generated materials.
 - Approving reviewed materials for an assisted automation handoff.
 - Viewing automation runs, logs, final URLs, and review-required state.
@@ -189,7 +189,7 @@ cmd/description-fetcher/          Description fetcher command
 cmd/parser-worker/                Parser / enrichment worker command
 cmd/matching-worker/              Matching worker command
 cmd/notification-worker/          Notification worker command
-cmd/resume-tuning-worker/         Resume and cover letter draft worker command
+cmd/resume-tuning-worker/         Resume, cover letter, and application answer draft worker command
 cmd/automation-worker/            Automation handoff worker command
 cmd/api/                          API service command
 cmd/profile/                      Candidate profile import command
@@ -223,7 +223,7 @@ internal/parser/                 Deterministic job description parser
 internal/parserworker/           Parser worker orchestration
 internal/profile/                Candidate profile model and validation
 internal/producer/               Source producer orchestration
-internal/resumetuner/            Deterministic resume and cover letter drafting
+internal/resumetuner/            Deterministic resume, cover letter, and application answer drafting
 internal/resumetuningworker/     Resume tuning worker orchestration
 internal/sources/                Source adapters
 internal/store/                  SQLite migrations and repositories
@@ -529,7 +529,7 @@ GET /ws
 The WebSocket endpoint accepts dashboard clients and sends a subscription acknowledgement. It is intended for browser and Electron clients; both must connect from an allowed origin.
 When the realtime bridge is enabled, the API forwards matching NATS events to subscribed clients with topic names such as `jobs`, `applications`, and `notifications`.
 Review status changes are also broadcast to `applications` WebSocket subscribers.
-Automation handoff creates an `automation_runs` record, selects the approved resume and optional approved cover letter, and publishes `applications.automation.approved` plus `automation.run.requested` to JetStream. The automation worker must still stop before final submission.
+Automation handoff creates an `automation_runs` record, selects the approved resume, optional approved cover letter, and approved application answer materials, and publishes `applications.automation.approved` plus `automation.run.requested` to JetStream. The automation worker must still stop before final submission.
 
 ## Running the React UI
 
@@ -608,7 +608,7 @@ Events use the shared envelope:
 - Do not silently submit applications.
 - Keep user approval before final submission.
 - Do not generate false resume or application content.
-- Preserve the exact resume and cover letter used for each application.
+- Preserve the exact resume, cover letter, and application answers used for each application.
 
 ## Next Implementation Steps
 

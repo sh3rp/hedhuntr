@@ -106,6 +106,35 @@ func TestApplicationReadyContextAndMaterials(t *testing.T) {
 	if material.Status != "approved" {
 		t.Fatalf("material.Status = %q, want approved", material.Status)
 	}
+	answerDocID, err := st.CreateDocument(ctx, CreateDocumentParams{
+		Kind:      "application_answers",
+		Format:    "markdown",
+		Path:      "/tmp/answers.md",
+		SHA256:    "answers",
+		SizeBytes: 20,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	answerMaterialID, err := st.CreateApplicationMaterial(ctx, CreateApplicationMaterialParams{
+		ApplicationID:      app.ApplicationID,
+		JobID:              jobID,
+		CandidateProfileID: profileID,
+		Kind:               "application_answers",
+		DocumentID:         answerDocID,
+		Status:             "draft",
+		SourceEventID:      "ready-event",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.UpdateApplicationMaterialStatus(ctx, UpdateApplicationMaterialStatusParams{
+		ID:     answerMaterialID,
+		Status: "approved",
+		Notes:  "Approved answers.",
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	handoff, err := st.ApproveApplicationForAutomation(ctx, app.ApplicationID)
 	if err != nil {
@@ -116,6 +145,9 @@ func TestApplicationReadyContextAndMaterials(t *testing.T) {
 	}
 	if handoff.Packet.Materials.Resume.ID != materialID {
 		t.Fatalf("packet resume material = %d, want %d", handoff.Packet.Materials.Resume.ID, materialID)
+	}
+	if len(handoff.Packet.Materials.Answers) != 1 || handoff.Packet.Materials.Answers[0].ID != answerMaterialID {
+		t.Fatalf("packet answers = %#v, want approved answer material %d", handoff.Packet.Materials.Answers, answerMaterialID)
 	}
 
 	started, err := st.StartAutomationRun(ctx, handoff.AutomationRun.ID)

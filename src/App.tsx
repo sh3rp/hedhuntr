@@ -366,7 +366,7 @@ function MaterialReviewCard({ material, onChanged }: { material: ReviewMaterial;
     <article className="material-card">
       <div className="material-header">
         <div>
-          <strong>{material.kind === "cover_letter" ? "Cover Letter" : "Resume"}</strong>
+          <strong>{materialLabel(material.kind)}</strong>
           <span>{material.path}</span>
         </div>
         <StatusPill status={material.status.replaceAll("_", " ")} />
@@ -588,8 +588,23 @@ function reviewWarnings(material: ReviewMaterial, review: MaterialReview) {
   if (material.kind === "resume" && !review.sections.includes("Review Notes")) warnings.push("Resume is missing generator review notes.");
   if (material.kind === "resume" && !review.sections.includes("Selected Highlights")) warnings.push("Resume is missing selected highlights.");
   if (material.kind === "cover_letter" && review.wordCount > 500) warnings.push("Cover letter is longer than 500 words.");
+  if (material.kind === "application_answers" && !review.sections.includes("Work authorization")) warnings.push("Application answers are missing the work authorization review prompt.");
+  if (material.kind === "application_answers" && !review.sections.includes("Review Notes")) warnings.push("Application answers are missing review notes.");
   if (review.reviewNotes.some((note) => note.toLowerCase().includes("verify"))) warnings.push("Generator explicitly requested verification before use.");
   return warnings;
+}
+
+function materialLabel(kind: string) {
+  switch (kind) {
+    case "cover_letter":
+      return "Cover Letter";
+    case "application_answers":
+      return "Application Answers";
+    case "resume":
+      return "Resume";
+    default:
+      return kind.replaceAll("_", " ");
+  }
 }
 
 function wordCount(value: string) {
