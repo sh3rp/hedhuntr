@@ -1,0 +1,23 @@
+{
+  "nats": {
+    "url": "nats://nats:4222",
+    "stream": "JOBS",
+    "publish_timeout": "5s"
+  },
+  "sqlite": {
+    "path": "/data/hedhuntr.db"
+  },
+  "consumer": {
+    "durable": "resume-tuning-worker",
+    "batch_size": 5,
+    "fetch_wait": "2s",
+    "max_in_flight": 64
+  },
+  "documents": {
+    "root_dir": "/data/documents"
+  },
+  "tuning": {
+    "resume_source_id": 0,
+    "max_highlights": 6
+  }
+}

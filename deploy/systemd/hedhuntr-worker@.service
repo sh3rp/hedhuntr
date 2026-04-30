@@ -1,0 +1,16 @@
+[Unit]
+Description=Hedhuntr %i worker
+After=network-online.target nats.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hedhuntr
+Group=hedhuntr
+WorkingDirectory=/opt/hedhuntr
+ExecStart=/opt/hedhuntr/bin/%i -config /etc/hedhuntr/%i.json
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

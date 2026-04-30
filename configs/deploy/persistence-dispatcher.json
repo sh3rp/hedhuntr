@@ -1,0 +1,16 @@
+{
+  "nats": {
+    "url": "nats://nats:4222",
+    "stream": "JOBS",
+    "publish_timeout": "5s"
+  },
+  "sqlite": {
+    "path": "/data/hedhuntr.db"
+  },
+  "consumer": {
+    "durable": "persistence-dispatcher",
+    "batch_size": 10,
+    "fetch_wait": "2s",
+    "max_in_flight": 128
+  }
+}

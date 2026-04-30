@@ -1,0 +1,22 @@
+{
+  "nats": {
+    "url": "nats://nats:4222",
+    "stream": "JOBS",
+    "publish_timeout": "5s"
+  },
+  "sqlite": {
+    "path": "/data/hedhuntr.db"
+  },
+  "consumer": {
+    "durable": "description-fetcher",
+    "batch_size": 10,
+    "fetch_wait": "2s",
+    "max_in_flight": 128
+  },
+  "http_client": {
+    "timeout": "20s",
+    "user_agent": "hedhuntr-description-fetcher/0.1",
+    "max_body_bytes": 2000000,
+    "store_raw_html": false
+  }
+}

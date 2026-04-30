@@ -1,0 +1,16 @@
+[Unit]
+Description=Hedhuntr scheduler service
+After=network-online.target nats.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hedhuntr
+Group=hedhuntr
+WorkingDirectory=/opt/hedhuntr
+ExecStart=/opt/hedhuntr/bin/scheduler -config /etc/hedhuntr/scheduler.json
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

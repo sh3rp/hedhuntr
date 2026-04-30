@@ -1,0 +1,22 @@
+{
+  "nats": {
+    "url": "nats://nats:4222",
+    "stream": "JOBS",
+    "publish_timeout": "5s"
+  },
+  "sqlite": {
+    "path": "/data/hedhuntr.db"
+  },
+  "consumer": {
+    "durable": "notification-worker",
+    "batch_size": 10,
+    "fetch_wait": "2s",
+    "max_in_flight": 128
+  },
+  "notifications": {
+    "min_score": 70,
+    "notify_jobs_matched": true,
+    "notify_applications_ready": true,
+    "channels": []
+  }
+}

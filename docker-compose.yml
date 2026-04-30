@@ -1,0 +1,122 @@
+services:
+  nats:
+    image: nats:2.10-alpine
+    command: ["-js", "-sd", "/data/jetstream"]
+    ports:
+      - "4222:4222"
+    volumes:
+      - nats-data:/data
+
+  api:
+    build:
+      context: .
+      target: go-runtime
+    entrypoint: ["/app/bin/api"]
+    command: ["-config", "/app/configs/deploy/api.json"]
+    depends_on:
+      - nats
+    ports:
+      - "8080:8080"
+    volumes:
+      - hedhuntr-data:/data
+
+  web:
+    build:
+      context: .
+      target: web
+    depends_on:
+      - api
+    ports:
+      - "5173:80"
+
+  scheduler:
+    build:
+      context: .
+      target: go-runtime
+    entrypoint: ["/app/bin/scheduler"]
+    command: ["-config", "/app/configs/deploy/scheduler.json"]
+    depends_on:
+      - nats
+    volumes:
+      - hedhuntr-data:/data
+
+  persistence-dispatcher:
+    build:
+      context: .
+      target: go-runtime
+    entrypoint: ["/app/bin/persistence-dispatcher"]
+    command: ["-config", "/app/configs/deploy/persistence-dispatcher.json"]
+    depends_on:
+      - nats
+    volumes:
+      - hedhuntr-data:/data
+
+  description-fetcher:
+    build:
+      context: .
+      target: go-runtime
+    entrypoint: ["/app/bin/description-fetcher"]
+    command: ["-config", "/app/configs/deploy/description-fetcher.json"]
+    depends_on:
+      - nats
+    volumes:
+      - hedhuntr-data:/data
+
+  parser-worker:
+    build:
+      context: .
+      target: go-runtime
+    entrypoint: ["/app/bin/parser-worker"]
+    command: ["-config", "/app/configs/deploy/parser-worker.json"]
+    depends_on:
+      - nats
+    volumes:
+      - hedhuntr-data:/data
+
+  matching-worker:
+    build:
+      context: .
+      target: go-runtime
+    entrypoint: ["/app/bin/matching-worker"]
+    command: ["-config", "/app/configs/deploy/matching-worker.json"]
+    depends_on:
+      - nats
+    volumes:
+      - hedhuntr-data:/data
+
+  resume-tuning-worker:
+    build:
+      context: .
+      target: go-runtime
+    entrypoint: ["/app/bin/resume-tuning-worker"]
+    command: ["-config", "/app/configs/deploy/resume-tuning-worker.json"]
+    depends_on:
+      - nats
+    volumes:
+      - hedhuntr-data:/data
+
+  notification-worker:
+    build:
+      context: .
+      target: go-runtime
+    entrypoint: ["/app/bin/notification-worker"]
+    command: ["-config", "/app/configs/deploy/notification-worker.json"]
+    depends_on:
+      - nats
+    volumes:
+      - hedhuntr-data:/data
+
+  automation-worker:
+    build:
+      context: .
+      target: go-runtime
+    entrypoint: ["/app/bin/automation-worker"]
+    command: ["-config", "/app/configs/deploy/automation-worker.json"]
+    depends_on:
+      - nats
+    volumes:
+      - hedhuntr-data:/data
+
+volumes:
+  hedhuntr-data:
+  nats-data:

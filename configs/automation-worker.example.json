@@ -20,6 +20,14 @@
   "automation": {
     "_comment": "packet-only prepares an approved packet and stops at user review. ATS adapters prepare review-only assisted filling plans; final submission remains blocked.",
     "mode": "packet-only",
-    "allowed_adapters": ["greenhouse", "lever", "ashby", "workday", "generic"]
+    "allowed_adapters": ["greenhouse", "lever", "ashby", "workday", "generic"],
+    "browser": {
+      "_comment": "Set enabled=true or mode=assisted-browser to launch an assisted browser session and write a review handoff JSON file. Use args with {url} as the application URL placeholder. The worker still stops before final submission.",
+      "enabled": false,
+      "command": "xdg-open",
+      "args": ["{url}"],
+      "handoff_dir": "data/automation-handoffs",
+      "timeout": "10s"
+    }
   }
 }

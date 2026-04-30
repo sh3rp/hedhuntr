@@ -408,7 +408,7 @@ Responsibilities:
 - Consume `automation.run.requested`.
 - Load approved application packets.
 - In packet-only mode, prepare a review-only ATS adapter plan and stop at `review_required`.
-- Coordinate Playwright-assisted form filling for supported sites.
+- In assisted-browser mode, write a JSON handoff file and launch the configured browser opener for supported sites.
 - Attach approved resume, cover letter, and application answer documents.
 - Pause for user review before final submission.
 - Store automation logs, outcomes, and confirmation details when available.
@@ -430,6 +430,7 @@ Implemented review-only adapter plans:
 - Generic form adapter.
 
 Future browser execution should use these adapter plans as the control boundary and must preserve the final-submission review checkpoint.
+The current assisted-browser implementation opens the application URL and records handoff metadata. It does not bypass authentication, solve challenges, or submit forms.
 
 ### SQLite Store
 
@@ -654,13 +655,14 @@ The first version should include:
 - Basic job matching.
 - Discord and email notifications.
 - Dashboard for discovered, saved, matched, ready-to-apply, applied, and interview states.
+- Docker Compose packaging and systemd deployment examples.
 
 ## Later Phases
 
 - Slack notifications.
 - Email and calendar sync.
 - Chrome extension for one-click job capture.
-- Browser execution for review-only ATS adapter plans.
+- Deeper field-level browser filling for review-only ATS adapter plans.
 - Recruiter/contact CRM.
 - Response-rate analytics.
 - Follow-up reminders.

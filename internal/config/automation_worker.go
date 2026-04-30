@@ -15,8 +15,18 @@ type AutomationWorker struct {
 }
 
 type AutomationConfig struct {
-	Mode            string   `json:"mode"`
-	AllowedAdapters []string `json:"allowed_adapters"`
+	Mode            string                  `json:"mode"`
+	AllowedAdapters []string                `json:"allowed_adapters"`
+	Browser         BrowserAutomationConfig `json:"browser"`
+}
+
+type BrowserAutomationConfig struct {
+	Enabled    bool     `json:"enabled"`
+	Command    string   `json:"command"`
+	Args       []string `json:"args"`
+	HandoffDir string   `json:"handoff_dir"`
+	TimeoutRaw string   `json:"timeout"`
+	Timeout    time.Duration
 }
 
 func LoadAutomationWorker(path string) (AutomationWorker, error) {
@@ -66,6 +76,18 @@ func LoadAutomationWorker(path string) (AutomationWorker, error) {
 	}
 	if len(cfg.Automation.AllowedAdapters) == 0 {
 		cfg.Automation.AllowedAdapters = []string{"greenhouse", "lever", "ashby", "workday", "generic"}
+	}
+	if cfg.Automation.Browser.HandoffDir == "" {
+		cfg.Automation.Browser.HandoffDir = "data/automation-handoffs"
+	}
+	if cfg.Automation.Browser.TimeoutRaw == "" {
+		cfg.Automation.Browser.Timeout = 10 * time.Second
+	} else {
+		timeout, err := time.ParseDuration(cfg.Automation.Browser.TimeoutRaw)
+		if err != nil {
+			return AutomationWorker{}, fmt.Errorf("parse automation.browser.timeout: %w", err)
+		}
+		cfg.Automation.Browser.Timeout = timeout
 	}
 	return cfg, nil
 }

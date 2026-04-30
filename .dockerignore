@@ -1,0 +1,9 @@
+.git
+dist
+dist-electron
+node_modules
+data
+*.db
+*.db-*
+Dockerfile
+docker-compose.yml

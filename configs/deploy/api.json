@@ -1,0 +1,39 @@
+{
+  "_comment": "Container config for cmd/api. The web container proxies /api and /ws to this service.",
+  "http": {
+    "addr": "0.0.0.0:8080",
+    "allowed_origins": [
+      "http://localhost:5173",
+      "http://127.0.0.1:5173",
+      "http://zoe.ts.shep.run:5173"
+    ]
+  },
+  "nats": {
+    "url": "nats://nats:4222",
+    "stream": "JOBS",
+    "publish_timeout": "5s"
+  },
+  "sqlite": {
+    "path": "/data/hedhuntr.db"
+  },
+  "websocket": {
+    "ping_interval": "25s"
+  },
+  "realtime": {
+    "enabled": true,
+    "subjects": [
+      "jobs.saved",
+      "jobs.description.fetched",
+      "jobs.parsed",
+      "jobs.matched",
+      "applications.ready",
+      "applications.materials.drafted",
+      "applications.automation.approved",
+      "automation.run.requested",
+      "automation.run.started",
+      "automation.run.review_required",
+      "automation.run.failed",
+      "notifications.>"
+    ]
+  }
+}

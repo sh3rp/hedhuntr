@@ -131,7 +131,7 @@ func (s *Service) processMessage(ctx context.Context, msg *nats.Msg) (bool, erro
 	}
 	if err := s.store.AddAutomationLog(ctx, store.AutomationLogParams{
 		RunID:   run.ID,
-		Message: "Automation run started in packet-only mode.",
+		Message: fmt.Sprintf("Automation run started in %s mode.", s.cfg.Automation.Mode),
 		Details: map[string]any{"mode": s.cfg.Automation.Mode},
 	}); err != nil {
 		return false, err
@@ -174,6 +174,34 @@ func (s *Service) processMessage(ctx context.Context, msg *nats.Msg) (bool, erro
 		},
 	}); err != nil {
 		return false, err
+	}
+	browserCfg := s.cfg.Automation.Browser
+	if s.cfg.Automation.Mode == "assisted-browser" {
+		browserCfg.Enabled = true
+	}
+	execution, err := ExecuteAssistedBrowser(ctx, browserCfg, run, packet, plan)
+	if err != nil {
+		failed, markErr := s.store.MarkAutomationFailed(ctx, run.ID, err.Error())
+		if markErr == nil {
+			_ = s.publishStatus(ctx, envelope, events.SubjectAutomationRunFailed, events.EventAutomationRunFailed, failed, err.Error())
+		}
+		return false, err
+	}
+	if execution.Enabled {
+		if err := s.store.AddAutomationLog(ctx, store.AutomationLogParams{
+			RunID:   run.ID,
+			Message: "Assisted browser execution prepared.",
+			Details: map[string]any{
+				"launched":     execution.Launched,
+				"command":      execution.Command,
+				"handoff_path": execution.HandoffPath,
+				"url":          execution.URL,
+				"message":      execution.Message,
+				"review_only":  true,
+			},
+		}); err != nil {
+			return false, err
+		}
 	}
 
 	reviewRun, err := s.store.MarkAutomationReviewRequired(ctx, run.ID, plan.FinalURL)

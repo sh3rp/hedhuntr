@@ -141,6 +141,7 @@ The Automation Worker currently supports:
 - Loading approved automation packets from SQLite.
 - Recording automation run status and audit log entries.
 - Preparing ATS-specific adapter plans for Greenhouse, Lever, Ashby, Workday, and generic application URLs.
+- Launching an optional assisted browser session and writing a JSON handoff file for review.
 - Stopping packet-only runs at `review_required`.
 - Publishing `automation.run.started`, `automation.run.review_required`, and `automation.run.failed`.
 - Never submitting an application.
@@ -206,6 +207,8 @@ configs/matching-worker.example.json
 configs/notification-worker.example.json
 configs/resume-tuning-worker.example.json
 configs/automation-worker.example.json
+configs/deploy/                    Container-oriented runtime configs
+deploy/                            Docker nginx config, systemd units, and deployment notes
 examples/resume.example.md
 electron/                         Electron desktop shell
 internal/config/                 Configuration loading
@@ -485,6 +488,8 @@ go run ./cmd/automation-worker -config configs/automation-worker.example.json -m
 
 The current automation worker runs in `packet-only` mode. It loads the approved application packet, selects a review-only ATS adapter plan for Greenhouse, Lever, Ashby, Workday, or a generic application URL, records audit logs, marks the run `review_required`, and stops before any final submission.
 
+Set `automation.mode` to `assisted-browser` or set `automation.browser.enabled` to `true` to write a JSON handoff file and launch the application URL with the configured browser command. The handoff file includes the selected adapter plan, approved materials metadata, and the final-submission guardrail.
+
 ## Running the API Service
 
 Start the Go API service:
@@ -579,6 +584,24 @@ Run the desktop shell during development:
 npm run electron:dev
 ```
 
+## Production Packaging
+
+Build and run the container stack:
+
+```bash
+docker compose up --build
+```
+
+The stack includes NATS JetStream, the Go API, nginx serving the React build, the scheduler, and durable workers. Runtime configs are in `configs/deploy`, SQLite and generated documents live in the `hedhuntr-data` volume, and NATS stream data lives in the `nats-data` volume.
+
+Open the containerized UI at:
+
+```text
+http://localhost:5173/
+```
+
+Systemd unit examples and additional deployment notes are in `deploy/README.md`.
+
 ## Event Output
 
 The source producer publishes `JobDiscovered` events to:
@@ -613,5 +636,4 @@ Events use the shared envelope:
 
 ## Next Implementation Steps
 
-- Add production packaging and deployment manifests.
-- Add browser execution behind the review-only ATS adapter plans.
+- Email notification provider is still skipped.

@@ -1,0 +1,16 @@
+[Unit]
+Description=Hedhuntr API service
+After=network-online.target nats.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hedhuntr
+Group=hedhuntr
+WorkingDirectory=/opt/hedhuntr
+ExecStart=/opt/hedhuntr/bin/api -config /etc/hedhuntr/api.json
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

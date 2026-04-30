@@ -1,0 +1,31 @@
+{
+  "_comment": "Container source config reused by the scheduler. Enable real sources after adding their settings.",
+  "nats": {
+    "url": "nats://nats:4222",
+    "stream": "JOBS",
+    "publish_timeout": "5s"
+  },
+  "sources": [
+    {
+      "name": "example-static",
+      "type": "static",
+      "enabled": true,
+      "settings": {
+        "jobs": [
+          {
+            "external_id": "example-001",
+            "title": "Senior Backend Engineer",
+            "company": "ExampleCo",
+            "location": "Remote",
+            "remote_policy": "remote",
+            "employment_type": "full_time",
+            "source_url": "https://example.com/jobs/senior-backend-engineer",
+            "application_url": "https://example.com/jobs/senior-backend-engineer/apply",
+            "description": "Build event-driven backend services in Go.",
+            "detected_skills": ["Go", "NATS", "SQLite"]
+          }
+        ]
+      }
+    }
+  ]
+}
