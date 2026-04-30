@@ -63,6 +63,10 @@ type CreateInterviewTaskParams struct {
 	Notes       string `json:"notes"`
 }
 
+type UpdateInterviewTaskStatusParams struct {
+	Status string `json:"status"`
+}
+
 func (s *Store) CreateInterview(ctx context.Context, params CreateInterviewParams) (Interview, error) {
 	if params.ApplicationID <= 0 {
 		return Interview{}, fmt.Errorf("application_id is required")
@@ -166,6 +170,31 @@ VALUES(?, ?, ?, ?)`,
 	id, err := result.LastInsertId()
 	if err != nil {
 		return InterviewTask{}, err
+	}
+	return s.getInterviewTask(ctx, id)
+}
+
+func (s *Store) UpdateInterviewTaskStatus(ctx context.Context, id int64, params UpdateInterviewTaskStatusParams) (InterviewTask, error) {
+	if id <= 0 {
+		return InterviewTask{}, fmt.Errorf("interview task id is required")
+	}
+	status := strings.TrimSpace(params.Status)
+	if !validInterviewTaskStatus(status) {
+		return InterviewTask{}, fmt.Errorf("invalid interview task status %q", params.Status)
+	}
+	result, err := s.db.ExecContext(ctx, `
+UPDATE interview_tasks
+SET status = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+WHERE id = ?`, status, id)
+	if err != nil {
+		return InterviewTask{}, fmt.Errorf("update interview task: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return InterviewTask{}, err
+	}
+	if affected == 0 {
+		return InterviewTask{}, fmt.Errorf("interview task %d not found", id)
 	}
 	return s.getInterviewTask(ctx, id)
 }
@@ -321,6 +350,15 @@ WHERE id = ?`, id).Scan(&task.ID, &task.InterviewID, &task.Title, &task.Status, 
 func validInterviewStatus(status string) bool {
 	switch strings.TrimSpace(status) {
 	case "scheduled", "completed", "cancelled", "no_show", "offer", "rejected":
+		return true
+	default:
+		return false
+	}
+}
+
+func validInterviewTaskStatus(status string) bool {
+	switch strings.TrimSpace(status) {
+	case "open", "done":
 		return true
 	default:
 		return false

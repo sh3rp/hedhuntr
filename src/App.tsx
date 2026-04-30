@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { approveApplicationForAutomation, createInterview, createInterviewTask, failAutomationRun, loadDashboardData, markAutomationSubmitted, retryAutomationRun, saveCandidateProfile, updateInterviewStatus, updateReviewMaterialStatus, type DashboardData } from "./api/client";
+import { approveApplicationForAutomation, createInterview, createInterviewTask, failAutomationRun, loadDashboardData, markAutomationSubmitted, retryAutomationRun, saveCandidateProfile, updateInterviewStatus, updateInterviewTaskStatus, updateReviewMaterialStatus, type DashboardData } from "./api/client";
 import { jobs as mockJobs, notifications as mockNotifications, pipeline as mockPipeline, resumeSources as mockResumeSources, workers as mockWorkers } from "./data/mockData";
 import { useRealtime } from "./hooks/useRealtime";
 import type { AutomationRunView, CandidateProfile, Certification, CreateInterviewRequest, Education, Interview, Job, JobStatus, NavItem, ProfileLink, ProfileQualityReport, Project, RealtimeEvent, ReviewApplication, ReviewMaterial, ReviewMaterialStatus, ViewKey, WorkHistory } from "./types";
@@ -766,6 +766,11 @@ function InterviewsView({ applications, interviews, onChanged }: { applications:
     onChanged();
   };
 
+  const toggleTask = async (taskID: number, status: string) => {
+    await updateInterviewTaskStatus(taskID, status === "done" ? "open" : "done");
+    onChanged();
+  };
+
   return (
     <div className="view-stack">
       <section className="panel">
@@ -858,9 +863,14 @@ function InterviewsView({ applications, interviews, onChanged }: { applications:
               {interview.notes ? <p>{interview.notes}</p> : null}
               <div className="interview-tasks">
                 {interview.tasks.map((task) => (
-                  <div className="event-row" key={task.id}>
-                    <strong>{task.title}</strong>
-                    <span>{task.dueAt || task.status}</span>
+                  <div className={`interview-task-row ${task.status === "done" ? "done" : ""}`} key={task.id}>
+                    <button className="icon-button" onClick={() => toggleTask(task.id, task.status)} title={task.status === "done" ? "Reopen task" : "Mark task done"} type="button">
+                      <CheckCircle2 size={18} />
+                    </button>
+                    <div>
+                      <strong>{task.title}</strong>
+                      <span>{task.dueAt || task.status}</span>
+                    </div>
                   </div>
                 ))}
                 <div className="task-entry">

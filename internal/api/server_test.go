@@ -450,6 +450,19 @@ func TestInterviewEndpoints(t *testing.T) {
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("task status = %d, want 201", resp.StatusCode)
 	}
+	var task store.InterviewTask
+	if err := json.NewDecoder(resp.Body).Decode(&task); err != nil {
+		t.Fatal(err)
+	}
+	taskStatusBody := bytes.NewBufferString(`{"status":"done"}`)
+	resp, err = http.Post(httpServer.URL+"/api/interview-tasks/"+strconvFormat(task.ID)+"/status", "application/json", taskStatusBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("task update status = %d, want 200", resp.StatusCode)
+	}
 
 	statusBody := bytes.NewBufferString(`{"status":"completed","outcome":"advance","notes":"Went well."}`)
 	resp, err = http.Post(httpServer.URL+"/api/interviews/"+strconvFormat(interview.ID)+"/status", "application/json", statusBody)
@@ -473,7 +486,7 @@ func TestInterviewEndpoints(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&interviews); err != nil {
 		t.Fatal(err)
 	}
-	if len(interviews) != 1 || len(interviews[0].Tasks) != 1 || interviews[0].Status != "completed" {
+	if len(interviews) != 1 || len(interviews[0].Tasks) != 1 || interviews[0].Status != "completed" || interviews[0].Tasks[0].Status != "done" {
 		t.Fatalf("interviews = %#v", interviews)
 	}
 }

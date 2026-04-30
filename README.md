@@ -154,7 +154,7 @@ The API Service currently supports:
 - Updating generated material status for approve, reject, needs-changes, and regeneration-requested actions.
 - Creating automation handoff packets from approved application materials.
 - Exposing automation run state, logs, and run control actions.
-- Tracking interviews, interview status changes, and follow-up tasks.
+- Tracking interviews, interview status changes, follow-up tasks, and task completion.
 - Publishing durable automation handoff events to JetStream.
 - Providing WebSocket subscriptions for React and Electron clients.
 - Subscribing to NATS workflow events and broadcasting live dashboard updates over WebSockets.
@@ -172,7 +172,7 @@ The React/Electron UI currently supports:
 - Approving reviewed materials for an assisted automation handoff.
 - Viewing automation runs, logs, final URLs, and review-required state.
 - Marking automation runs submitted, failed, or retrying them with durable worker events.
-- Scheduling interviews, updating interview status, and adding follow-up tasks.
+- Scheduling interviews, updating interview status, adding follow-up tasks, and marking tasks done or open.
 - Running as a browser UI through Vite.
 - Running as a desktop shell through Electron.
 
@@ -514,6 +514,7 @@ GET /api/interviews
 POST /api/interviews
 POST /api/interviews/{id}/status
 POST /api/interviews/{id}/tasks
+POST /api/interview-tasks/{id}/status
 GET /api/notifications
 GET /api/workers
 GET /ws

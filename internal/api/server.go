@@ -87,6 +87,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/interviews", s.handleCreateInterview)
 	mux.HandleFunc("POST /api/interviews/{id}/status", s.handleUpdateInterview)
 	mux.HandleFunc("POST /api/interviews/{id}/tasks", s.handleCreateInterviewTask)
+	mux.HandleFunc("POST /api/interview-tasks/{id}/status", s.handleUpdateInterviewTaskStatus)
 	mux.HandleFunc("GET /api/notifications", s.handleNotifications)
 	mux.HandleFunc("GET /api/workers", s.handleWorkers)
 	mux.HandleFunc("GET /ws", s.handleWebSocket)
@@ -489,6 +490,36 @@ func (s *Server) handleCreateInterviewTask(w http.ResponseWriter, r *http.Reques
 		},
 	})
 	writeJSON(w, http.StatusCreated, task)
+}
+
+func (s *Server) handleUpdateInterviewTaskStatus(w http.ResponseWriter, r *http.Request) {
+	id, err := parsePathID(r, "id")
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	var request store.UpdateInterviewTaskStatusParams
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+		return
+	}
+	task, err := s.store.UpdateInterviewTaskStatus(r.Context(), id, request)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	s.hub.Broadcast(WSMessage{
+		Type:       "event",
+		Topic:      "interviews",
+		EventType:  "InterviewTaskUpdated",
+		OccurredAt: time.Now().UTC().Format(time.RFC3339Nano),
+		Payload: map[string]any{
+			"interview_id": task.InterviewID,
+			"task_id":      task.ID,
+			"status":       task.Status,
+		},
+	})
+	writeJSON(w, http.StatusOK, task)
 }
 
 func (s *Server) broadcastInterview(eventType string, interview store.Interview) {

@@ -46,6 +46,13 @@ func TestInterviewTrackingPersistence(t *testing.T) {
 	if task.ID == 0 || task.Status != "open" {
 		t.Fatalf("task = %#v", task)
 	}
+	doneTask, err := st.UpdateInterviewTaskStatus(ctx, task.ID, UpdateInterviewTaskStatusParams{Status: "done"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doneTask.Status != "done" {
+		t.Fatalf("doneTask.Status = %q, want done", doneTask.Status)
+	}
 
 	updated, err := st.UpdateInterview(ctx, interview.ID, UpdateInterviewParams{
 		Status:  "completed",
@@ -63,7 +70,7 @@ func TestInterviewTrackingPersistence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(interviews) != 1 || len(interviews[0].Tasks) != 1 {
+	if len(interviews) != 1 || len(interviews[0].Tasks) != 1 || interviews[0].Tasks[0].Status != "done" {
 		t.Fatalf("interviews = %#v, want one interview with one task", interviews)
 	}
 }

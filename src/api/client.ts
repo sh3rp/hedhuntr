@@ -87,6 +87,10 @@ export function createInterviewTask(interviewId: number, title: string, dueAt = 
   return postJSON<InterviewTask>(`/api/interviews/${interviewId}/tasks`, { title, dueAt, notes });
 }
 
+export function updateInterviewTaskStatus(taskId: number, status: "open" | "done"): Promise<InterviewTask> {
+  return postJSON<InterviewTask>(`/api/interview-tasks/${taskId}/status`, { status });
+}
+
 export function saveCandidateProfile(profile: CandidateProfile): Promise<CandidateProfile> {
   return fetch(`${apiBase}/api/profile`, {
     method: "PUT",

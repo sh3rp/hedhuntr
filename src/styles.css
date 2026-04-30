@@ -918,6 +918,37 @@ button:disabled {
   gap: 12px;
 }
 
+.interview-task-row {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 8px 0;
+  border-top: 1px solid #edf0ec;
+}
+
+.interview-task-row.done strong,
+.interview-task-row.done span {
+  color: #68756f;
+  text-decoration: line-through;
+}
+
+.interview-task-row.done .icon-button {
+  color: #ffffff;
+  border-color: #205f4d;
+  background: #205f4d;
+}
+
+.interview-task-row strong,
+.interview-task-row span {
+  display: block;
+}
+
+.interview-task-row span {
+  color: #68756f;
+  font-size: 13px;
+}
+
 .interview-card {
   padding: 14px;
   border: 1px solid #e1e7e1;
