@@ -195,6 +195,12 @@ func (s *Server) handleReviewMaterialStatus(w http.ResponseWriter, r *http.Reque
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
+	if material.Status == "regeneration_requested" {
+		if err := s.publishMaterialRegenerationRequested(r.Context(), material.ID); err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			return
+		}
+	}
 	s.hub.Broadcast(WSMessage{
 		Type:       "event",
 		Topic:      "applications",
@@ -207,6 +213,45 @@ func (s *Server) handleReviewMaterialStatus(w http.ResponseWriter, r *http.Reque
 		},
 	})
 	writeJSON(w, http.StatusOK, material)
+}
+
+func (s *Server) publishMaterialRegenerationRequested(ctx context.Context, materialID int64) error {
+	if s.publisher == nil {
+		return fmt.Errorf("api event publisher is unavailable")
+	}
+	context, err := s.store.MaterialRegenerationContext(ctx, materialID)
+	if err != nil {
+		return err
+	}
+	now := time.Now().UTC()
+	correlationID := events.StableID(
+		"material-regeneration",
+		fmt.Sprintf("%d", context.ApplicationID),
+		fmt.Sprintf("%d", context.MaterialID),
+		now.Format(time.RFC3339Nano),
+	)
+	idempotencyKey := events.StableID(
+		"application-ready-regeneration",
+		fmt.Sprintf("%d", context.ApplicationID),
+		fmt.Sprintf("%d", context.MaterialID),
+		now.Format(time.RFC3339Nano),
+	)
+	ready := events.Envelope[events.ApplicationReadyPayload]{
+		EventID:        events.StableID("event", events.EventApplicationReady, "api-regeneration", idempotencyKey),
+		EventType:      events.EventApplicationReady,
+		EventVersion:   1,
+		OccurredAt:     now,
+		Source:         "api-regeneration",
+		CorrelationID:  correlationID,
+		IdempotencyKey: idempotencyKey,
+		Payload: events.ApplicationReadyPayload{
+			JobID:              context.JobID,
+			CandidateProfileID: context.CandidateProfileID,
+			MatchScore:         context.MatchScore,
+			ReadyAt:            now,
+		},
+	}
+	return s.publisher.Publish(ctx, events.SubjectApplicationsReady, ready)
 }
 
 func (s *Server) handleApproveAutomation(w http.ResponseWriter, r *http.Request) {

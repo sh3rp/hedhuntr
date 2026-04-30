@@ -37,6 +37,15 @@ type UpdateApplicationMaterialStatusParams struct {
 	Notes  string
 }
 
+type MaterialRegenerationContext struct {
+	ApplicationID      int64
+	JobID              int64
+	CandidateProfileID int64
+	MatchScore         int
+	MaterialID         int64
+	Kind               string
+}
+
 func (s *Store) APIReviewQueue(ctx context.Context) ([]APIReviewApplication, error) {
 	rows, err := s.db.QueryContext(ctx, `
 SELECT a.id, a.job_id, a.candidate_profile_id, j.title, j.company, COALESCE(j.location, ''),
@@ -163,4 +172,27 @@ WHERE m.id = ?`, id).Scan(
 		material.Content = string(content)
 	}
 	return material, nil
+}
+
+func (s *Store) MaterialRegenerationContext(ctx context.Context, materialID int64) (MaterialRegenerationContext, error) {
+	var out MaterialRegenerationContext
+	err := s.db.QueryRowContext(ctx, `
+SELECT a.id, a.job_id, a.candidate_profile_id, a.match_score, m.id, m.kind
+FROM application_materials m
+JOIN applications a ON a.id = m.application_id
+WHERE m.id = ?`, materialID).Scan(
+		&out.ApplicationID,
+		&out.JobID,
+		&out.CandidateProfileID,
+		&out.MatchScore,
+		&out.MaterialID,
+		&out.Kind,
+	)
+	if err == sql.ErrNoRows {
+		return MaterialRegenerationContext{}, fmt.Errorf("application material %d not found", materialID)
+	}
+	if err != nil {
+		return MaterialRegenerationContext{}, fmt.Errorf("load regeneration context: %w", err)
+	}
+	return out, nil
 }

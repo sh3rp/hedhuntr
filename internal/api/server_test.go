@@ -275,6 +275,39 @@ func TestReviewEndpoints(t *testing.T) {
 	}
 }
 
+func TestReviewMaterialRegenerationPublishesApplicationReady(t *testing.T) {
+	server, httpServer := newTestServer(t)
+	publisher := &recordingPublisher{}
+	server.SetPublisher(publisher)
+	materialID := seedReviewMaterial(t, server)
+
+	body := bytes.NewBufferString(`{"status":"regeneration_requested","notes":"Try a stronger platform angle."}`)
+	resp, err := http.Post(httpServer.URL+"/api/review/materials/"+strconvFormat(materialID)+"/status", "application/json", body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	if len(publisher.events) != 1 {
+		t.Fatalf("published events = %d, want 1", len(publisher.events))
+	}
+	if publisher.events[0].subject != events.SubjectApplicationsReady {
+		t.Fatalf("subject = %q, want %q", publisher.events[0].subject, events.SubjectApplicationsReady)
+	}
+	envelope, ok := publisher.events[0].envelope.(events.Envelope[events.ApplicationReadyPayload])
+	if !ok {
+		t.Fatalf("envelope type = %T, want ApplicationReady envelope", publisher.events[0].envelope)
+	}
+	if envelope.EventType != events.EventApplicationReady || envelope.Source != "api-regeneration" {
+		t.Fatalf("envelope = %#v, want api-regeneration ApplicationReady", envelope)
+	}
+	if envelope.Payload.JobID == 0 || envelope.Payload.CandidateProfileID == 0 || envelope.Payload.MatchScore != 92 {
+		t.Fatalf("payload = %#v, want seeded application context", envelope.Payload)
+	}
+}
+
 func TestUpdateProfileEndpoint(t *testing.T) {
 	_, httpServer := newTestServer(t)
 	body := bytes.NewBufferString(`{
