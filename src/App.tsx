@@ -26,10 +26,10 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { approveApplicationForAutomation, createInterview, createInterviewTask, failAutomationRun, loadDashboardData, markAutomationSubmitted, retryAutomationRun, saveCandidateProfile, updateInterviewStatus, updateInterviewTaskStatus, updateReviewMaterialStatus, type DashboardData } from "./api/client";
+import { approveApplicationForAutomation, createInterview, createInterviewTask, failAutomationRun, loadDashboardData, markAutomationSubmitted, retryAutomationRun, saveCandidateProfile, saveNotificationChannel, saveNotificationRule, updateInterviewStatus, updateInterviewTaskStatus, updateReviewMaterialStatus, type DashboardData } from "./api/client";
 import { jobs as mockJobs, notifications as mockNotifications, pipeline as mockPipeline, resumeSources as mockResumeSources, workers as mockWorkers } from "./data/mockData";
 import { useRealtime } from "./hooks/useRealtime";
-import type { AutomationRunView, CandidateProfile, Certification, CreateInterviewRequest, Education, Interview, Job, JobStatus, NavItem, ProfileLink, ProfileQualityReport, Project, RealtimeEvent, ReviewApplication, ReviewMaterial, ReviewMaterialStatus, ViewKey, WorkHistory } from "./types";
+import type { AutomationRunView, CandidateProfile, Certification, CreateInterviewRequest, Education, Interview, Job, JobStatus, NavItem, NotificationChannel, NotificationRule, NotificationSettings, ProfileLink, ProfileQualityReport, Project, RealtimeEvent, ReviewApplication, ReviewMaterial, ReviewMaterialStatus, ViewKey, WorkHistory } from "./types";
 
 const navItems: NavItem[] = [
   { key: "overview", label: "Overview", icon: LayoutDashboard },
@@ -67,6 +67,7 @@ export function App() {
     automationRuns: [],
     interviews: [],
     notifications: mockNotifications,
+    notificationSettings: { channels: [], rules: [] },
     workers: mockWorkers
   });
   const dataRef = useRef(data);
@@ -167,7 +168,7 @@ export function App() {
         {view === "interviews" && <InterviewsView applications={data.reviewApplications} interviews={data.interviews} onChanged={refreshDashboard} />}
         {view === "profile" && <ProfileView onChanged={refreshDashboard} profile={data.profile} quality={data.profileQuality} />}
         {view === "resumes" && <ResumesView sources={data.resumeSources} />}
-        {view === "notifications" && <NotificationsView rows={data.notifications} />}
+        {view === "notifications" && <NotificationsView onChanged={refreshDashboard} rows={data.notifications} settings={data.notificationSettings} />}
         {view === "system" && <SystemView realtimeEvents={realtime.events} workers={data.workers} />}
       </main>
     </div>
@@ -1501,22 +1502,148 @@ function ResumesView({ sources }: { sources: typeof mockResumeSources }) {
   );
 }
 
-function NotificationsView({ rows }: { rows: typeof mockNotifications }) {
+function NotificationsView({ onChanged, rows, settings }: { onChanged: () => void; rows: typeof mockNotifications; settings: NotificationSettings }) {
+  const [channelDraft, setChannelDraft] = useState<NotificationChannel>({
+    name: "",
+    type: "discord",
+    enabled: true,
+    webhookUrl: ""
+  });
+  const [ruleDraft, setRuleDraft] = useState<NotificationRule>({
+    name: "jobs-matched",
+    eventSubject: "jobs.matched",
+    enabled: true,
+    minScore: 70
+  });
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const saveChannel = async (channel: NotificationChannel) => {
+    setBusy(true);
+    setMessage("");
+    try {
+      await saveNotificationChannel(channel);
+      setChannelDraft({ name: "", type: "discord", enabled: true, webhookUrl: "" });
+      setMessage("Notification channel saved.");
+      onChanged();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Unable to save notification channel.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveRule = async (rule: NotificationRule) => {
+    setBusy(true);
+    setMessage("");
+    try {
+      await saveNotificationRule({ ...rule, minScore: rule.minScore === null || rule.minScore === undefined ? null : Number(rule.minScore) });
+      setRuleDraft({ name: "jobs-matched", eventSubject: "jobs.matched", enabled: true, minScore: 70 });
+      setMessage("Notification rule saved.");
+      onChanged();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Unable to save notification rule.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <section className="panel">
-      <PanelHeader title="Deliveries" icon={Bell} />
-      <div className="list-table">
-        {rows.map((delivery) => (
-          <div className="list-row" key={`${delivery.channel}-${delivery.time}`}>
-            <span>{delivery.channel}</span>
-            <span>{delivery.type}</span>
-            <StatusPill status={delivery.status} />
-            <span>{delivery.subject}</span>
-            <span>{delivery.time}</span>
+    <div className="view-stack">
+      <section className="split-layout">
+        <div className="panel">
+          <PanelHeader title="Channels" icon={Bell} />
+          <div className="settings-list">
+            {settings.channels.length === 0 ? <span className="empty-state">No notification channels configured.</span> : null}
+            {settings.channels.map((channel) => (
+              <div className="settings-row" key={channel.name}>
+                <div>
+                  <strong>{channel.name}</strong>
+                  <span>{channel.type} · {channel.webhookUrl ? "webhook configured" : "missing webhook"}</span>
+                </div>
+                <StatusPill status={channel.enabled ? "enabled" : "disabled"} />
+                <button className="secondary-action" disabled={busy} onClick={() => saveChannel({ ...channel, enabled: !channel.enabled })} type="button">
+                  {channel.enabled ? "Disable" : "Enable"}
+                </button>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
-    </section>
+          <div className="profile-form settings-form">
+            <TextField label="Name" value={channelDraft.name} onChange={(value) => setChannelDraft({ ...channelDraft, name: value })} />
+            <label>
+              <span className="field-label">Type</span>
+              <select value={channelDraft.type} onChange={(event) => setChannelDraft({ ...channelDraft, type: event.target.value })}>
+                <option value="discord">Discord</option>
+                <option value="slack">Slack</option>
+              </select>
+            </label>
+            <TextField label="Webhook URL" value={channelDraft.webhookUrl} onChange={(value) => setChannelDraft({ ...channelDraft, webhookUrl: value })} wide />
+          </div>
+          <button className="primary-action" disabled={busy} onClick={() => saveChannel(channelDraft)} type="button">
+            <CheckCircle2 size={18} />
+            Save Channel
+          </button>
+        </div>
+
+        <div className="panel">
+          <PanelHeader title="Rules" icon={Settings} />
+          <div className="settings-list">
+            {settings.rules.length === 0 ? <span className="empty-state">No notification rules configured.</span> : null}
+            {settings.rules.map((rule) => (
+              <div className="settings-row" key={rule.name}>
+                <div>
+                  <strong>{rule.name}</strong>
+                  <span>{rule.eventSubject}{rule.minScore !== null && rule.minScore !== undefined ? ` · min score ${rule.minScore}` : ""}</span>
+                </div>
+                <StatusPill status={rule.enabled ? "enabled" : "disabled"} />
+                <button className="secondary-action" disabled={busy} onClick={() => saveRule({ ...rule, enabled: !rule.enabled })} type="button">
+                  {rule.enabled ? "Disable" : "Enable"}
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="profile-form settings-form">
+            <TextField label="Name" value={ruleDraft.name} onChange={(value) => setRuleDraft({ ...ruleDraft, name: value })} />
+            <label>
+              <span className="field-label">Event Subject</span>
+              <select value={ruleDraft.eventSubject} onChange={(event) => setRuleDraft({ ...ruleDraft, eventSubject: event.target.value })}>
+                <option value="jobs.matched">Jobs Matched</option>
+                <option value="applications.ready">Applications Ready</option>
+              </select>
+            </label>
+            <label>
+              <span className="field-label">Minimum Score</span>
+              <input
+                type="number"
+                value={ruleDraft.minScore ?? ""}
+                onChange={(event) => setRuleDraft({ ...ruleDraft, minScore: event.target.value === "" ? null : Number(event.target.value) })}
+              />
+            </label>
+          </div>
+          <button className="primary-action" disabled={busy} onClick={() => saveRule(ruleDraft)} type="button">
+            <CheckCircle2 size={18} />
+            Save Rule
+          </button>
+        </div>
+      </section>
+
+      {message ? <div className="profile-message">{message}</div> : null}
+
+      <section className="panel">
+        <PanelHeader title="Deliveries" icon={Bell} />
+        <div className="list-table">
+          {rows.map((delivery) => (
+            <div className="list-row" key={`${delivery.channel}-${delivery.time}`}>
+              <span>{delivery.channel}</span>
+              <span>{delivery.type}</span>
+              <StatusPill status={delivery.status} />
+              <span>{delivery.subject}</span>
+              <span>{delivery.time}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
   );
 }
 

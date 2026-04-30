@@ -51,4 +51,19 @@ func TestNotificationDeliveryPersistence(t *testing.T) {
 	if count != 1 {
 		t.Fatalf("CountNotificationDeliveries() = %d, want 1", count)
 	}
+
+	channels, err := st.ListNotificationChannels(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(channels) != 1 || !channels[0].Enabled || channels[0].Type != "discord" {
+		t.Fatalf("channels = %#v, want enabled discord channel", channels)
+	}
+	rules, err := st.ListNotificationRules(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rules) != 1 || !rules[0].Enabled || rules[0].MinScore == nil || *rules[0].MinScore != 70 {
+		t.Fatalf("rules = %#v, want enabled jobs-matched rule min score 70", rules)
+	}
 }

@@ -1,4 +1,4 @@
-import type { AutomationHandoff, AutomationRun, AutomationRunView, CandidateProfile, CreateInterviewRequest, Interview, InterviewTask, Job, NotificationDelivery, PipelineStage, ProfileQualityReport, ResumeSource, ReviewApplication, ReviewMaterial, ReviewMaterialStatus, WorkerState } from "../types";
+import type { AutomationHandoff, AutomationRun, AutomationRunView, CandidateProfile, CreateInterviewRequest, Interview, InterviewTask, Job, NotificationChannel, NotificationDelivery, NotificationRule, NotificationSettings, PipelineStage, ProfileQualityReport, ResumeSource, ReviewApplication, ReviewMaterial, ReviewMaterialStatus, WorkerState } from "../types";
 
 const apiBase = (import.meta.env.VITE_HEDHUNTR_API_URL as string | undefined) ?? "";
 
@@ -35,11 +35,12 @@ export type DashboardData = {
   automationRuns: AutomationRunView[];
   interviews: Interview[];
   notifications: NotificationDelivery[];
+  notificationSettings: NotificationSettings;
   workers: WorkerState[];
 };
 
 export async function loadDashboardData(fallback: DashboardData): Promise<DashboardData> {
-  const [jobs, pipeline, profile, profileQuality, resumeSources, reviewApplications, automationRuns, interviews, notifications, workers] = await Promise.all([
+  const [jobs, pipeline, profile, profileQuality, resumeSources, reviewApplications, automationRuns, interviews, notifications, notificationSettings, workers] = await Promise.all([
     getJSON<Job[]>("/api/jobs", fallback.jobs),
     getJSON<PipelineStage[]>("/api/pipeline", fallback.pipeline),
     getJSON<CandidateProfile | null>("/api/profile", fallback.profile),
@@ -49,10 +50,11 @@ export async function loadDashboardData(fallback: DashboardData): Promise<Dashbo
     getJSON<AutomationRunView[]>("/api/automation/runs", fallback.automationRuns),
     getJSON<Interview[]>("/api/interviews", fallback.interviews),
     getJSON<NotificationDelivery[]>("/api/notifications", fallback.notifications),
+    getJSON<NotificationSettings>("/api/notification-settings", fallback.notificationSettings),
     getJSON<WorkerState[]>("/api/workers", fallback.workers)
   ]);
 
-  return { jobs, pipeline, profile, profileQuality, resumeSources, reviewApplications, automationRuns, interviews, notifications, workers };
+  return { jobs, pipeline, profile, profileQuality, resumeSources, reviewApplications, automationRuns, interviews, notifications, notificationSettings, workers };
 }
 
 export function updateReviewMaterialStatus(id: number, status: ReviewMaterialStatus, notes = ""): Promise<ReviewMaterial> {
@@ -89,6 +91,14 @@ export function createInterviewTask(interviewId: number, title: string, dueAt = 
 
 export function updateInterviewTaskStatus(taskId: number, status: "open" | "done"): Promise<InterviewTask> {
   return postJSON<InterviewTask>(`/api/interview-tasks/${taskId}/status`, { status });
+}
+
+export function saveNotificationChannel(channel: NotificationChannel): Promise<NotificationSettings> {
+  return postJSON<NotificationSettings>("/api/notification-settings/channels", channel);
+}
+
+export function saveNotificationRule(rule: NotificationRule): Promise<NotificationSettings> {
+  return postJSON<NotificationSettings>("/api/notification-settings/rules", rule);
 }
 
 export function saveCandidateProfile(profile: CandidateProfile): Promise<CandidateProfile> {

@@ -161,6 +161,7 @@ Responsibilities:
 - Create automation handoff packets only after required materials are approved.
 - Expose automation run state, logs, and manual status controls.
 - Track interviews, outcomes, follow-up tasks, and task completion.
+- Manage notification channels and event rules through SQLite-backed settings.
 - Publish durable automation handoff events to JetStream after user approval.
 - Provide the `/ws` WebSocket endpoint for browser and Electron clients.
 - Broadcast real-time updates derived from application events and user-triggered state changes.

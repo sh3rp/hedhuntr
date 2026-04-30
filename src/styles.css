@@ -1070,14 +1070,16 @@ button:disabled {
 
 .list-table,
 .worker-list,
-.event-feed {
+.event-feed,
+.settings-list {
   display: grid;
   gap: 8px;
 }
 
 .list-row,
 .worker-row,
-.event-row {
+.event-row,
+.settings-row {
   display: grid;
   grid-template-columns: minmax(120px, 1fr) 120px 120px 1fr 90px;
   gap: 12px;
@@ -1089,6 +1091,24 @@ button:disabled {
 
 .worker-row {
   grid-template-columns: minmax(150px, 1fr) 96px 64px 64px;
+}
+
+.settings-row {
+  grid-template-columns: minmax(160px, 1fr) 96px auto;
+}
+
+.settings-row strong,
+.settings-row span {
+  display: block;
+}
+
+.settings-row span {
+  color: #68756f;
+  overflow-wrap: anywhere;
+}
+
+.settings-form {
+  margin-top: 16px;
 }
 
 .worker-row strong,
@@ -1197,7 +1217,8 @@ button:disabled {
 
   .job-table-row,
   .list-row,
-  .worker-row {
+  .worker-row,
+  .settings-row {
     grid-template-columns: 1fr;
     align-items: start;
   }

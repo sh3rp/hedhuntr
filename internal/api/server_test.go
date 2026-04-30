@@ -491,6 +491,60 @@ func TestInterviewEndpoints(t *testing.T) {
 	}
 }
 
+func TestNotificationSettingsEndpoints(t *testing.T) {
+	_, httpServer := newTestServer(t)
+
+	resp, err := http.Post(httpServer.URL+"/api/notification-settings/channels", "application/json", bytes.NewBufferString(`{
+		"name":"discord-alerts",
+		"type":"discord",
+		"enabled":true,
+		"webhookUrl":"https://example.test/webhook"
+	}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("channel status = %d, want 200", resp.StatusCode)
+	}
+
+	resp, err = http.Post(httpServer.URL+"/api/notification-settings/rules", "application/json", bytes.NewBufferString(`{
+		"name":"jobs-matched",
+		"eventSubject":"jobs.matched",
+		"enabled":true,
+		"minScore":85
+	}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("rule status = %d, want 200", resp.StatusCode)
+	}
+
+	resp, err = http.Get(httpServer.URL + "/api/notification-settings")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("settings status = %d, want 200", resp.StatusCode)
+	}
+	var settings struct {
+		Channels []store.NotificationChannel `json:"channels"`
+		Rules    []store.NotificationRule    `json:"rules"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&settings); err != nil {
+		t.Fatal(err)
+	}
+	if len(settings.Channels) != 1 || settings.Channels[0].Name != "discord-alerts" || !settings.Channels[0].Enabled {
+		t.Fatalf("channels = %#v", settings.Channels)
+	}
+	if len(settings.Rules) != 1 || settings.Rules[0].MinScore == nil || *settings.Rules[0].MinScore != 85 {
+		t.Fatalf("rules = %#v", settings.Rules)
+	}
+}
+
 func seedReviewMaterial(t *testing.T, server *Server) int64 {
 	t.Helper()
 	ctx := context.Background()

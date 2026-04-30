@@ -171,13 +171,17 @@ func (s *Service) processMessage(ctx context.Context, msg *nats.Msg) (int, int, 
 	if err != nil {
 		return 0, 0, err
 	}
-	if !notification.ShouldNotify(msg.Subject, score, s.cfg.Notifications) {
+	channels, shouldNotify, err := s.notificationSettings(ctx, msg.Subject, score)
+	if err != nil {
+		return 0, 0, err
+	}
+	if !shouldNotify {
 		return 0, 0, nil
 	}
 
 	var sent int
 	var failed int
-	for _, channel := range s.channels {
+	for _, channel := range channels {
 		if !channel.Enabled {
 			continue
 		}
@@ -203,6 +207,36 @@ func (s *Service) processMessage(ctx context.Context, msg *nats.Msg) (int, int, 
 		}
 	}
 	return sent, failed, nil
+}
+
+func (s *Service) notificationSettings(ctx context.Context, subject string, score int) ([]notification.Channel, bool, error) {
+	storeChannels, err := s.store.ListNotificationChannels(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	channels := make([]notification.Channel, 0, len(storeChannels))
+	for _, channel := range storeChannels {
+		channels = append(channels, notification.Channel{
+			Name:       channel.Name,
+			Type:       channel.Type,
+			Enabled:    channel.Enabled,
+			WebhookURL: channel.WebhookURL,
+		})
+	}
+	rules, err := s.store.ListNotificationRules(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	for _, rule := range rules {
+		if rule.EventSubject != subject || !rule.Enabled {
+			continue
+		}
+		if rule.MinScore != nil && score < *rule.MinScore {
+			return channels, false, nil
+		}
+		return channels, true, nil
+	}
+	return channels, false, nil
 }
 
 func (s *Service) messageFromEvent(msg *nats.Msg) (string, int, string, error) {

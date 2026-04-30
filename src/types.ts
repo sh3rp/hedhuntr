@@ -57,10 +57,35 @@ export type WorkerState = {
 
 export type NotificationDelivery = {
   channel: string;
-  type: "discord" | "slack";
+  type: "discord" | "slack" | string;
   status: "sent" | "failed" | "disabled";
   subject: string;
   time: string;
+};
+
+export type NotificationChannel = {
+  id?: number;
+  name: string;
+  type: "discord" | "slack" | string;
+  enabled: boolean;
+  webhookUrl?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type NotificationRule = {
+  id?: number;
+  name: string;
+  eventSubject: string;
+  enabled: boolean;
+  minScore?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type NotificationSettings = {
+  channels: NotificationChannel[];
+  rules: NotificationRule[];
 };
 
 export type ResumeSource = {

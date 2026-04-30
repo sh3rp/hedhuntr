@@ -89,6 +89,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/interviews/{id}/tasks", s.handleCreateInterviewTask)
 	mux.HandleFunc("POST /api/interview-tasks/{id}/status", s.handleUpdateInterviewTaskStatus)
 	mux.HandleFunc("GET /api/notifications", s.handleNotifications)
+	mux.HandleFunc("GET /api/notification-settings", s.handleNotificationSettings)
+	mux.HandleFunc("POST /api/notification-settings/channels", s.handleUpsertNotificationChannel)
+	mux.HandleFunc("POST /api/notification-settings/rules", s.handleUpsertNotificationRule)
 	mux.HandleFunc("GET /api/workers", s.handleWorkers)
 	mux.HandleFunc("GET /ws", s.handleWebSocket)
 	return s.cors(mux)
@@ -541,6 +544,63 @@ func (s *Server) broadcastInterview(eventType string, interview store.Interview)
 func (s *Server) handleNotifications(w http.ResponseWriter, r *http.Request) {
 	deliveries, err := s.store.APINotifications(r.Context())
 	writeResult(w, deliveries, err)
+}
+
+func (s *Server) handleNotificationSettings(w http.ResponseWriter, r *http.Request) {
+	channels, err := s.store.ListNotificationChannels(r.Context())
+	if err != nil {
+		writeResult(w, nil, err)
+		return
+	}
+	rules, err := s.store.ListNotificationRules(r.Context())
+	if err != nil {
+		writeResult(w, nil, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"channels": channels,
+		"rules":    rules,
+	})
+}
+
+func (s *Server) handleUpsertNotificationChannel(w http.ResponseWriter, r *http.Request) {
+	var request store.UpsertNotificationChannelParams
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+		return
+	}
+	if err := s.store.UpsertNotificationChannel(r.Context(), request); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	s.broadcastNotificationSettings("NotificationChannelUpdated", request.Name)
+	s.handleNotificationSettings(w, r)
+}
+
+func (s *Server) handleUpsertNotificationRule(w http.ResponseWriter, r *http.Request) {
+	var request store.UpsertNotificationRuleParams
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+		return
+	}
+	if err := s.store.UpsertNotificationRule(r.Context(), request); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	s.broadcastNotificationSettings("NotificationRuleUpdated", request.Name)
+	s.handleNotificationSettings(w, r)
+}
+
+func (s *Server) broadcastNotificationSettings(eventType, name string) {
+	s.hub.Broadcast(WSMessage{
+		Type:       "event",
+		Topic:      "notifications",
+		EventType:  eventType,
+		OccurredAt: time.Now().UTC().Format(time.RFC3339Nano),
+		Payload: map[string]any{
+			"name": name,
+		},
+	})
 }
 
 func (s *Server) handleWorkers(w http.ResponseWriter, r *http.Request) {
