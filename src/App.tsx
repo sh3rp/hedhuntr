@@ -894,6 +894,8 @@ function ProfileView({ profile, quality, onChanged }: { profile: CandidateProfil
   const [locationsText, setLocationsText] = useState(initial.preferred_locations.join(", "));
   const [saving, setSaving] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [profileMessage, setProfileMessage] = useState("");
+  const importInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const next = profile ?? emptyProfile();
@@ -902,16 +904,19 @@ function ProfileView({ profile, quality, onChanged }: { profile: CandidateProfil
     setTitlesText(next.preferred_titles.join(", "));
     setLocationsText(next.preferred_locations.join(", "));
     setValidationErrors([]);
+    setProfileMessage("");
   }, [profile]);
 
+  const profilePayload = (): CandidateProfile => ({
+    ...draft,
+    skills: csv(skillsText),
+    preferred_titles: csv(titlesText),
+    preferred_locations: csv(locationsText),
+    min_salary: draft.min_salary === null || draft.min_salary === undefined ? null : Number(draft.min_salary)
+  });
+
   const save = async () => {
-    const payload = {
-      ...draft,
-      skills: csv(skillsText),
-      preferred_titles: csv(titlesText),
-      preferred_locations: csv(locationsText),
-      min_salary: draft.min_salary === null || draft.min_salary === undefined ? null : Number(draft.min_salary)
-    };
+    const payload = profilePayload();
     const errors = validateProfileDraft(payload);
     setValidationErrors(errors);
     if (errors.length > 0) {
@@ -920,9 +925,45 @@ function ProfileView({ profile, quality, onChanged }: { profile: CandidateProfil
     setSaving(true);
     try {
       await saveCandidateProfile(payload);
+      setProfileMessage("Profile saved.");
       onChanged();
     } finally {
       setSaving(false);
+    }
+  };
+
+  const exportProfile = () => {
+    const payload = profilePayload();
+    const data = JSON.stringify(payload, null, 2);
+    const blob = new Blob([data], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const name = payload.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "candidate-profile";
+    link.href = url;
+    link.download = `${name}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importProfile = async (file: File | null) => {
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text()) as unknown;
+      const imported = normalizeImportedProfile(parsed);
+      const errors = validateProfileDraft(imported);
+      setDraft(imported);
+      setSkillsText(imported.skills.join(", "));
+      setTitlesText(imported.preferred_titles.join(", "));
+      setLocationsText(imported.preferred_locations.join(", "));
+      setValidationErrors(errors);
+      setProfileMessage(errors.length > 0 ? "Profile imported with validation issues. Review the errors before saving." : "Profile imported. Review and save when ready.");
+    } catch (err) {
+      setProfileMessage("");
+      setValidationErrors([err instanceof Error ? err.message : "Unable to import profile JSON."]);
+    } finally {
+      if (importInputRef.current) {
+        importInputRef.current.value = "";
+      }
     }
   };
 
@@ -947,6 +988,21 @@ function ProfileView({ profile, quality, onChanged }: { profile: CandidateProfil
       <ProfileQualityPanel quality={quality} />
       <section className="panel profile-panel">
         <PanelHeader title="Candidate Profile" icon={UserRound} />
+        <div className="profile-import-export">
+          <input
+            accept="application/json,.json"
+            className="hidden-file-input"
+            onChange={(event) => importProfile(event.target.files?.[0] ?? null)}
+            ref={importInputRef}
+            type="file"
+          />
+          <button className="secondary-action" onClick={() => importInputRef.current?.click()} type="button">
+            Import JSON
+          </button>
+          <button className="secondary-action" onClick={exportProfile} type="button">
+            Export JSON
+          </button>
+        </div>
         <div className="profile-form">
           <label>
             <span className="field-label">Name</span>
@@ -993,6 +1049,7 @@ function ProfileView({ profile, quality, onChanged }: { profile: CandidateProfil
             </span>
           ))}
         </div>
+        {profileMessage ? <div className="profile-message">{profileMessage}</div> : null}
         {validationErrors.length > 0 ? <ValidationSummary errors={validationErrors} /> : null}
         <div className="profile-sections">
           <ProfileSection title="Work History" onAdd={() => setDraft({ ...draft, work_history: [...draft.work_history, emptyWorkHistory()] })}>
@@ -1320,6 +1377,85 @@ function validateProfileDraft(profile: CandidateProfile) {
     }
   });
   return errors;
+}
+
+function normalizeImportedProfile(value: unknown): CandidateProfile {
+  if (!isRecord(value)) {
+    throw new Error("Imported profile must be a JSON object.");
+  }
+  return {
+    id: typeof value.id === "number" ? value.id : undefined,
+    name: stringValue(value.name),
+    headline: stringValue(value.headline),
+    skills: stringArray(value.skills),
+    preferred_titles: stringArray(value.preferred_titles),
+    preferred_locations: stringArray(value.preferred_locations),
+    remote_preference: remotePreferenceValue(value.remote_preference),
+    min_salary: numberOrNull(value.min_salary),
+    work_history: arrayOfRecords(value.work_history).map((item) => ({
+      company: stringValue(item.company),
+      title: stringValue(item.title),
+      location: stringValue(item.location),
+      start_date: stringValue(item.start_date),
+      end_date: stringValue(item.end_date),
+      current: Boolean(item.current),
+      summary: stringValue(item.summary),
+      highlights: stringArray(item.highlights),
+      technologies: stringArray(item.technologies)
+    })),
+    projects: arrayOfRecords(value.projects).map((item) => ({
+      name: stringValue(item.name),
+      role: stringValue(item.role),
+      url: stringValue(item.url),
+      summary: stringValue(item.summary),
+      highlights: stringArray(item.highlights),
+      technologies: stringArray(item.technologies)
+    })),
+    education: arrayOfRecords(value.education).map((item) => ({
+      institution: stringValue(item.institution),
+      degree: stringValue(item.degree),
+      field: stringValue(item.field),
+      start_date: stringValue(item.start_date),
+      end_date: stringValue(item.end_date),
+      summary: stringValue(item.summary)
+    })),
+    certifications: arrayOfRecords(value.certifications).map((item) => ({
+      name: stringValue(item.name),
+      issuer: stringValue(item.issuer),
+      issued_at: stringValue(item.issued_at),
+      expires_at: stringValue(item.expires_at),
+      url: stringValue(item.url)
+    })),
+    links: arrayOfRecords(value.links).map((item) => ({
+      label: stringValue(item.label),
+      url: stringValue(item.url)
+    }))
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function arrayOfRecords(value: unknown) {
+  return Array.isArray(value) ? value.filter(isRecord) : [];
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
+function stringArray(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string").map((item) => item.trim()).filter(Boolean) : [];
+}
+
+function numberOrNull(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  return null;
+}
+
+function remotePreferenceValue(value: unknown): CandidateProfile["remote_preference"] {
+  return value === "remote" || value === "hybrid" || value === "onsite" ? value : "";
 }
 
 function isPresent(value: string | undefined) {

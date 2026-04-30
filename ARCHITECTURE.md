@@ -125,6 +125,7 @@ Responsibilities:
 - Render the job dashboard, job detail views, application queue, resume review screens, profile settings, notifications, and interview tracker.
 - Call the Go API over JSON HTTP.
 - Connect to the Go API WebSocket endpoint for real-time updates.
+- Import and export candidate profile JSON from the profile editor.
 - Provide human approval flows for generated resumes, cover letters, application answers, and final submissions.
 - Render a review queue for generated resume and cover letter drafts.
 - Render generated materials as preview, raw Markdown, structural checks, extracted sections, target skills, links, and generator review notes.

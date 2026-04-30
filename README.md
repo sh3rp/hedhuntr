@@ -166,6 +166,7 @@ The React/Electron UI currently supports:
 - Loading live dashboard data from the Go API.
 - Displaying job pipeline status, match scores, notifications, worker state, candidate profile, and resume sources.
 - Editing candidate profile name, headline, skills, preferences, salary floor, work history, projects, education, certifications, and links.
+- Importing and exporting candidate profile JSON from the profile editor.
 - Showing candidate profile completeness score and missing profile inputs.
 - Reviewing generated resume and cover letter drafts with rendered preview, raw Markdown, structural checks, section summaries, keyword chips, links, and generator review notes.
 - Approving, rejecting, requesting changes, or requesting regeneration for generated materials.

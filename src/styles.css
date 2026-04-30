@@ -753,6 +753,26 @@ button:disabled {
   margin-top: 16px;
 }
 
+.profile-import-export {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.hidden-file-input {
+  display: none;
+}
+
+.profile-message {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1px solid #c9dbce;
+  border-radius: 8px;
+  color: #205f4d;
+  background: #f0f7f2;
+}
+
 .validation-summary {
   display: grid;
   gap: 8px;
