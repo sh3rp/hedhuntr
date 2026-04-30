@@ -160,19 +160,30 @@ func (s *Service) processMessage(ctx context.Context, msg *nats.Msg) (bool, erro
 	}); err != nil {
 		return false, err
 	}
-
-	finalURL := packet.Job.ApplicationURL
-	if finalURL == "" {
-		finalURL = packet.Job.SourceURL
+	plan := BuildAdapterPlan(packet, s.cfg.Automation.AllowedAdapters)
+	if err := s.store.AddAutomationLog(ctx, store.AutomationLogParams{
+		RunID:   run.ID,
+		Message: fmt.Sprintf("ATS adapter plan prepared: %s.", plan.Adapter),
+		Details: map[string]any{
+			"adapter":         plan.Adapter,
+			"application_url": plan.ApplicationURL,
+			"final_url":       plan.FinalURL,
+			"steps":           plan.Steps,
+			"materials":       plan.Materials,
+			"review_only":     plan.ReviewOnly,
+		},
+	}); err != nil {
+		return false, err
 	}
-	reviewRun, err := s.store.MarkAutomationReviewRequired(ctx, run.ID, finalURL)
+
+	reviewRun, err := s.store.MarkAutomationReviewRequired(ctx, run.ID, plan.FinalURL)
 	if err != nil {
 		return false, err
 	}
 	if err := s.publishStatus(ctx, envelope, events.SubjectAutomationRunReviewRequired, events.EventAutomationRunReviewRequired, reviewRun, "User review required before final submission."); err != nil {
 		return false, err
 	}
-	s.logger.Info("automation packet prepared", "run_id", run.ID, "application_id", run.ApplicationID, "final_url", finalURL)
+	s.logger.Info("automation packet prepared", "run_id", run.ID, "application_id", run.ApplicationID, "adapter", plan.Adapter, "final_url", plan.FinalURL)
 	return true, nil
 }
 

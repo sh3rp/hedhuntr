@@ -18,7 +18,8 @@
     "max_in_flight": 64
   },
   "automation": {
-    "_comment": "packet-only prepares an approved packet and stops at user review. ATS browser adapters can be added later.",
-    "mode": "packet-only"
+    "_comment": "packet-only prepares an approved packet and stops at user review. ATS adapters prepare review-only assisted filling plans; final submission remains blocked.",
+    "mode": "packet-only",
+    "allowed_adapters": ["greenhouse", "lever", "ashby", "workday", "generic"]
   }
 }

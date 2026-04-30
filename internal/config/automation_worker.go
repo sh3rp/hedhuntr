@@ -15,7 +15,8 @@ type AutomationWorker struct {
 }
 
 type AutomationConfig struct {
-	Mode string `json:"mode"`
+	Mode            string   `json:"mode"`
+	AllowedAdapters []string `json:"allowed_adapters"`
 }
 
 func LoadAutomationWorker(path string) (AutomationWorker, error) {
@@ -62,6 +63,9 @@ func LoadAutomationWorker(path string) (AutomationWorker, error) {
 	}
 	if cfg.Automation.Mode == "" {
 		cfg.Automation.Mode = "packet-only"
+	}
+	if len(cfg.Automation.AllowedAdapters) == 0 {
+		cfg.Automation.AllowedAdapters = []string{"greenhouse", "lever", "ashby", "workday", "generic"}
 	}
 	return cfg, nil
 }

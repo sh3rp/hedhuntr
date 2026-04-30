@@ -140,7 +140,8 @@ The Automation Worker currently supports:
 - Consuming `automation.run.requested` from JetStream with a durable pull consumer.
 - Loading approved automation packets from SQLite.
 - Recording automation run status and audit log entries.
-- Preparing packet-only runs and stopping at `review_required`.
+- Preparing ATS-specific adapter plans for Greenhouse, Lever, Ashby, Workday, and generic application URLs.
+- Stopping packet-only runs at `review_required`.
 - Publishing `automation.run.started`, `automation.run.review_required`, and `automation.run.failed`.
 - Never submitting an application.
 
@@ -482,7 +483,7 @@ Process one pending automation request and exit:
 go run ./cmd/automation-worker -config configs/automation-worker.example.json -max-messages 1
 ```
 
-The current automation worker runs in `packet-only` mode. It loads the approved application packet, records audit logs, marks the run `review_required`, and stops before any final submission.
+The current automation worker runs in `packet-only` mode. It loads the approved application packet, selects a review-only ATS adapter plan for Greenhouse, Lever, Ashby, Workday, or a generic application URL, records audit logs, marks the run `review_required`, and stops before any final submission.
 
 ## Running the API Service
 
@@ -612,5 +613,5 @@ Events use the shared envelope:
 
 ## Next Implementation Steps
 
-- Add ATS-specific automation adapters for supported application systems.
-- Add notification settings UI.
+- Add production packaging and deployment manifests.
+- Add browser execution behind the review-only ATS adapter plans.

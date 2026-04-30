@@ -407,7 +407,7 @@ Responsibilities:
 
 - Consume `automation.run.requested`.
 - Load approved application packets.
-- In packet-only mode, record the packet and immediately stop at `review_required`.
+- In packet-only mode, prepare a review-only ATS adapter plan and stop at `review_required`.
 - Coordinate Playwright-assisted form filling for supported sites.
 - Attach approved resume, cover letter, and application answer documents.
 - Pause for user review before final submission.
@@ -421,13 +421,15 @@ Owns:
 - Browser automation logs.
 - Application packet preparation.
 
-Supported adapters can be added incrementally:
+Implemented review-only adapter plans:
 
 - Greenhouse.
 - Lever.
 - Ashby.
 - Workday.
 - Generic form adapter.
+
+Future browser execution should use these adapter plans as the control boundary and must preserve the final-submission review checkpoint.
 
 ### SQLite Store
 
@@ -658,7 +660,7 @@ The first version should include:
 - Slack notifications.
 - Email and calendar sync.
 - Chrome extension for one-click job capture.
-- More ATS-specific automation adapters.
+- Browser execution for review-only ATS adapter plans.
 - Recruiter/contact CRM.
 - Response-rate analytics.
 - Follow-up reminders.
